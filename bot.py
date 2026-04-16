@@ -17,12 +17,11 @@ from telegram.ext import (
     ContextTypes,
 )
 
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
-API_KEY = "ITACHI"
-BASE_URL = "http://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term=1234567890"
+BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
 
 flask_app = Flask(__name__)
 
@@ -40,22 +39,10 @@ def keep_alive():
     t.start()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    btn_user = KeyboardButton(
-        text="User",
-        request_users=KeyboardButtonRequestUsers(request_id=1, max_quantity=1),
-    )
-    btn_group = KeyboardButton(
-        text="Group",
-        request_chat=KeyboardButtonRequestChat(request_id=2, chat_is_channel=False),
-    )
-    btn_channel = KeyboardButton(
-        text="Channel",
-        request_chat=KeyboardButtonRequestChat(request_id=3, chat_is_channel=True),
-    )
-    markup = ReplyKeyboardMarkup(
-        [[btn_user, btn_group, btn_channel]],
-        resize_keyboard=True,
-    )
+    btn_user = KeyboardButton(text="User", request_users=KeyboardButtonRequestUsers(request_id=1, max_quantity=1))
+    btn_group = KeyboardButton(text="Group", request_chat=KeyboardButtonRequestChat(request_id=2, chat_is_channel=False))
+    btn_channel = KeyboardButton(text="Channel", request_chat=KeyboardButtonRequestChat(request_id=3, chat_is_channel=True))
+    markup = ReplyKeyboardMarkup([[btn_user, btn_group, btn_channel]], resize_keyboard=True)
     welcome_msg = (
         "*Welcome To @racksunbot*\n\n"
         f"*Your ID :* `{update.message.from_user.id}`\n\n"
@@ -63,33 +50,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Example: @username or 1234567890\n\n"
         "Or use the buttons below to get User/Group/Channel ID:"
     )
-    await update.message.reply_text(
-        welcome_msg,
-        reply_markup=markup,
-        parse_mode="Markdown",
-    )
+    await update.message.reply_text(welcome_msg, reply_markup=markup, parse_mode="Markdown")
 
 async def handle_users_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.users_shared:
         for user in update.message.users_shared.users:
-            await update.message.reply_text(
-                f"*User ID:* `{user.user_id}`",
-                parse_mode="Markdown",
-            )
+            await update.message.reply_text(f"*User ID:* `{user.user_id}`", parse_mode="Markdown")
 
 async def handle_chat_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_shared:
-        await update.message.reply_text(
-            f"*Chat ID:* `{update.message.chat_shared.chat_id}`",
-            parse_mode="Markdown",
-        )
+        await update.message.reply_text(f"*Chat ID:* `{update.message.chat_shared.chat_id}`", parse_mode="Markdown")
 
 async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
     await update.message.reply_text("Searching...")
     try:
-        params = {"key": API_KEY, "type": "tg", "term": user_input}
-        res = requests.get(BASE_URL, params=params, timeout=10)
+        url = BASE_URL + user_input
+        res = requests.get(url, timeout=10)
         data = res.json()
 
         if "result" in data:
@@ -98,7 +75,6 @@ async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
             result = data
 
         not_found = False
-
         if isinstance(result, dict):
             if not result.get("success", True):
                 not_found = True
