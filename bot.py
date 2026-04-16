@@ -22,7 +22,7 @@ if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
 API_KEY = "ITACHI"
-BASE_URL = "http://api.subhxcosmo.in/api"
+BASE_URL = "http://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term=1234567890"
 
 flask_app = Flask(__name__)
 
