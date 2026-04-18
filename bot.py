@@ -15,6 +15,7 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
     ContextTypes,
 )
@@ -52,21 +53,54 @@ async def is_member(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
 async def send_join_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     first_name = user.first_name or "User"
-    join_button = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)]]
-    )
+    join_button = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
+        [InlineKeyboardButton("✅ I've Joined", callback_data="check_joined")]
+    ])
     text = (
         f"⚠️ *Hello {first_name}!*\n\n"
         f"Join our channel to use this bot.\n"
-        f"After joining, send any message to continue."
+        f"After joining, click *I've Joined* button."
     )
-    await update.message.reply_text(text, reply_markup=join_button, parse_mode="Markdown")
+    sent = await update.message.reply_text(text, reply_markup=join_button, parse_mode="Markdown")
+    context.user_data["join_msg_id"] = sent.message_id
+
+async def delete_join_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    msg_id = context.user_data.get("join_msg_id")
+    if msg_id:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception:
+            pass
+        context.user_data.pop("join_msg_id", None)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="✅ *You have successfully joined our channel!*\n\nYou can now use the bot freely. Send /start to begin.",
+            parse_mode="Markdown"
+        )
+
+async def check_joined_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+
+    if await is_member(user_id, context):
+        await query.message.delete()
+        context.user_data.pop("join_msg_id", None)
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="✅ *You have successfully joined our channel!*\n\nYou can now use the bot freely. Send /start to begin.",
+            parse_mode="Markdown"
+        )
+    else:
+        await query.answer("❌ You haven't joined yet! Please join first.", show_alert=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
         return
+    await delete_join_message(context, chat_id)
     btn_user = KeyboardButton(text="User", request_users=KeyboardButtonRequestUsers(request_id=1, max_quantity=1))
     btn_group = KeyboardButton(text="Group", request_chat=KeyboardButtonRequestChat(request_id=2, chat_is_channel=False))
     btn_channel = KeyboardButton(text="Channel", request_chat=KeyboardButtonRequestChat(request_id=3, chat_is_channel=True))
@@ -82,26 +116,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_users_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
         return
+    await delete_join_message(context, chat_id)
     if update.message.users_shared:
         for user in update.message.users_shared.users:
             await update.message.reply_text(f"*User ID:* `{user.user_id}`", parse_mode="Markdown")
 
 async def handle_chat_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
         return
+    await delete_join_message(context, chat_id)
     if update.message.chat_shared:
         await update.message.reply_text(f"*Chat ID:* `{update.message.chat_shared.chat_id}`", parse_mode="Markdown")
 
 async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
         return
+    await delete_join_message(context, chat_id)
     user_input = update.message.text.strip()
     await update.message.reply_text("Searching...")
     try:
@@ -141,6 +181,7 @@ if __name__ == "__main__":
     print("Flask Server Started!")
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
     app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
     app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lookup))
