@@ -8,6 +8,8 @@ from telegram import (
     KeyboardButton,
     KeyboardButtonRequestUsers,
     KeyboardButtonRequestChat,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
 )
 from telegram.ext import (
     ApplicationBuilder,
@@ -22,6 +24,8 @@ if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
+CHANNEL_USERNAME = "@racksun19"
+CHANNEL_LINK = "https://t.me/racksun19"
 
 flask_app = Flask(__name__)
 
@@ -38,7 +42,31 @@ def keep_alive():
     t.daemon = True
     t.start()
 
+async def is_member(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    try:
+        member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        return member.status in ["member", "administrator", "creator"]
+    except Exception:
+        return False
+
+async def send_join_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    first_name = user.first_name or "User"
+    join_button = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)]]
+    )
+    text = (
+        f"⚠️ *Hello {first_name}!*\n\n"
+        f"Join our channel to use this bot.\n"
+        f"After joining, send any message to continue."
+    )
+    await update.message.reply_text(text, reply_markup=join_button, parse_mode="Markdown")
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
     btn_user = KeyboardButton(text="User", request_users=KeyboardButtonRequestUsers(request_id=1, max_quantity=1))
     btn_group = KeyboardButton(text="Group", request_chat=KeyboardButtonRequestChat(request_id=2, chat_is_channel=False))
     btn_channel = KeyboardButton(text="Channel", request_chat=KeyboardButtonRequestChat(request_id=3, chat_is_channel=True))
@@ -53,27 +81,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_msg, reply_markup=markup, parse_mode="Markdown")
 
 async def handle_users_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
     if update.message.users_shared:
         for user in update.message.users_shared.users:
             await update.message.reply_text(f"*User ID:* `{user.user_id}`", parse_mode="Markdown")
 
 async def handle_chat_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
     if update.message.chat_shared:
         await update.message.reply_text(f"*Chat ID:* `{update.message.chat_shared.chat_id}`", parse_mode="Markdown")
 
 async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
     user_input = update.message.text.strip()
     await update.message.reply_text("Searching...")
     try:
         url = BASE_URL + user_input
         res = requests.get(url, timeout=10)
         data = res.json()
-
         if "result" in data:
             result = data["result"]
         else:
             result = data
-
         not_found = False
         if isinstance(result, dict):
             if not result.get("success", True):
@@ -92,12 +130,9 @@ async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
             not_found = True
         else:
             text = f"*Result:*\n`{result}`"
-
         if not_found:
             text = "*Data Not Found!*\n\nNo information found for this number/username."
-
         await update.message.reply_text(text, parse_mode="Markdown")
-
     except Exception as e:
         await update.message.reply_text(f"Error:\n{str(e)}")
 
