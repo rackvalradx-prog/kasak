@@ -25,6 +25,7 @@ if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
+NUMBER_API_URL = "https://number-api-vercel.vercel.app/api?number={number}&key=D3V1L-OS1NT-K3Y-2026"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
 
@@ -82,7 +83,6 @@ async def delete_join_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
 async def check_joined_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
-
     if await is_member(user_id, context):
         await query.message.delete()
         context.user_data.pop("join_msg_id", None)
@@ -114,6 +114,45 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_msg, reply_markup=markup, parse_mode="Markdown")
 
+async def num_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
+    if not context.args:
+        await update.message.reply_text("*Usage:* `/num 8340617615`", parse_mode="Markdown")
+        return
+    number = context.args[0].replace("+", "").replace(" ", "")
+    await update.message.reply_text("🔍 Searching...")
+    try:
+        url = NUMBER_API_URL.format(number=number)
+        res = requests.get(url, timeout=10)
+        data = res.json()
+        if data.get("status") == "found" and data.get("data"):
+            entries = data["data"]
+            lines = [f"*Number:* `{data.get('number')}` | *Records:* `{data.get('total')}`\n"]
+            for i, entry in enumerate(entries, 1):
+                lines.append(f"*Record {i}*")
+                lines.append(f"*Name:* `{entry.get('name') or 'None'}`")
+                lines.append(f"*Father:* `{entry.get('father_name') or 'None'}`")
+                lines.append(f"*Mobile:* `{entry.get('mobile') or 'None'}`")
+                lines.append(f"*Alt Mobile:* `{entry.get('alt_mobile') or 'None'}`")
+                lines.append(f"*Email:* `{entry.get('email') or 'None'}`")
+                lines.append(f"*Address:* `{entry.get('address') or 'None'}`")
+                lines.append(f"*State:* `{entry.get('state') or 'None'}`")
+                lines.append(f"*Pincode:* `{entry.get('pincode') or 'None'}`")
+                lines.append(f"*Circle:* `{entry.get('circle') or 'None'}`")
+                lines.append(f"*National ID:* `{entry.get('national_id') or 'None'}`")
+                lines.append("")
+            text = "\n".join(lines)
+        else:
+            text = "*Data Not Found!*\n\nNo information found for this number."
+        await update.message.reply_text(text, parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"Error:\n{str(e)}")
+
 async def handle_users_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
@@ -143,7 +182,7 @@ async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await delete_join_message(context, chat_id)
     user_input = update.message.text.strip()
-    await update.message.reply_text("Searching...")
+    await update.message.reply_text("🔍 Searching...")
     try:
         url = BASE_URL + user_input
         res = requests.get(url, timeout=10)
@@ -171,7 +210,7 @@ async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text = f"*Result:*\n`{result}`"
         if not_found:
-            text = "*Data Not Found!*\n\nNo information found for this number/username."
+            text = "*Data Not Found!*\n\nNo information found for this username."
         await update.message.reply_text(text, parse_mode="Markdown")
     except Exception as e:
         await update.message.reply_text(f"Error:\n{str(e)}")
@@ -181,6 +220,7 @@ if __name__ == "__main__":
     print("Flask Server Started!")
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("num", num_lookup))
     app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
     app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
     app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
