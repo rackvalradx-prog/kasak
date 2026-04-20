@@ -182,6 +182,10 @@ async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await delete_join_message(context, chat_id)
     user_input = update.message.text.strip()
+    is_username = user_input.startswith("@") and len(user_input) > 1
+    is_number = user_input.lstrip("+").isdigit() and len(user_input.lstrip("+")) >= 7
+    if not is_username and not is_number:
+        return
     await update.message.reply_text("🔍 Searching...")
     try:
         url = BASE_URL + user_input
