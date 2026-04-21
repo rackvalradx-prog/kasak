@@ -114,6 +114,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_msg, reply_markup=markup, parse_mode="Markdown")
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
+    help_text = (
+        "🤖 *Welcome to @racksunbot Help*\n\n"
+        "Here's how to use this bot:\n\n"
+        "📱 *Telegram Username / UID Lookup*\n"
+        "  Just send the username or UID directly in chat.\n"
+        "  No command needed.\n\n"
+        "  Examples:\n"
+        "   • `@username`\n"
+        "   • `1234567890`\n\n"
+        "📞 *Phone Number Lookup*\n"
+        "  Use the /num command followed by the number.\n\n"
+        "  Example:\n"
+        "   • `/num 9876543210`\n\n"
+        "📋 *Available Commands*\n"
+        "  /start  — Start the bot\n"
+        "  /num    — Phone number lookup\n"
+        "  /help   — Show this help message"
+    )
+    await update.message.reply_text(help_text, parse_mode="Markdown")
+
 async def num_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
@@ -225,6 +252,7 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("num", num_lookup))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
     app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
     app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
