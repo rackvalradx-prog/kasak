@@ -25,7 +25,7 @@ if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
-NUMBER_API_URL = "https://number-api-vercel.vercel.app/api?number={number}&key=D3V1L-OS1NT-K3Y-2026"
+NUMBER_API_URL = "https://number-api-vercel.vercel.app/api?number=8340617615&key=DEVIL-24FC098A-3BD4"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
 
