@@ -94,6 +94,24 @@ async def check_joined_callback(update: Update, context: ContextTypes.DEFAULT_TY
     else:
         await query.answer("❌ You haven't joined yet! Please join first.", show_alert=True)
 
+def main_menu_markup() -> ReplyKeyboardMarkup:
+    btn_user = KeyboardButton(text="User", request_users=KeyboardButtonRequestUsers(request_id=1, max_quantity=1))
+    btn_group = KeyboardButton(text="Group", request_chat=KeyboardButtonRequestChat(request_id=2, chat_is_channel=False))
+    btn_channel = KeyboardButton(text="Channel", request_chat=KeyboardButtonRequestChat(request_id=3, chat_is_channel=True))
+    return ReplyKeyboardMarkup([[btn_user, btn_group, btn_channel]], resize_keyboard=True)
+
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, header: str = None):
+    user_id = update.message.from_user.id
+    welcome_msg = (
+        (header + "\n\n" if header else "")
+        + "*Welcome To @racksunbot*\n\n"
+        + f"*Your ID :* `{user_id}`\n\n"
+        + "Send me a Telegram username or number to look up.\n"
+        + "Example: @username or 1234567890\n\n"
+        + "Or use the buttons below to get User/Group/Channel ID:"
+    )
+    await update.message.reply_text(welcome_msg, reply_markup=main_menu_markup(), parse_mode="Markdown")
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
@@ -101,18 +119,52 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_join_message(update, context)
         return
     await delete_join_message(context, chat_id)
-    btn_user = KeyboardButton(text="User", request_users=KeyboardButtonRequestUsers(request_id=1, max_quantity=1))
-    btn_group = KeyboardButton(text="Group", request_chat=KeyboardButtonRequestChat(request_id=2, chat_is_channel=False))
-    btn_channel = KeyboardButton(text="Channel", request_chat=KeyboardButtonRequestChat(request_id=3, chat_is_channel=True))
-    markup = ReplyKeyboardMarkup([[btn_user, btn_group, btn_channel]], resize_keyboard=True)
-    welcome_msg = (
-        "*Welcome To @racksunbot*\n\n"
-        f"*Your ID :* `{update.message.from_user.id}`\n\n"
-        "Send me a Telegram username or number to look up.\n"
-        "Example: @username or 1234567890\n\n"
-        "Or use the buttons below to get User/Group/Channel ID:"
+    context.user_data.clear()
+    await show_main_menu(update, context)
+
+async def back_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
+    await show_main_menu(update, context, header="🔙 *Back to main menu.*")
+
+async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
+    context.user_data.clear()
+    await show_main_menu(update, context, header="❌ *Cancelled.*")
+
+async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
+    settings_text = (
+        "⚙️ *Settings*\n\n"
+        "*What this bot can do:*\n\n"
+        "📱 *Username / UID Lookup*\n"
+        "Send any @username or numeric ID to get details instantly\n\n"
+        "📞 *Phone Number Lookup*\n"
+        "Use `/num <number>` to fetch available information\n\n"
+        "👥 *User / Group / Channel ID*\n"
+        "Use the buttons below to get IDs easily\n\n"
+        "⚡ *Fast and Automatic*\n"
+        "No extra commands needed for basic lookups\n\n"
+        "❓ *Help Guide*\n"
+        "Use /help to see full instructions\n\n"
+        "—\n\n"
+        "_Thanks for using this bot._"
     )
-    await update.message.reply_text(welcome_msg, reply_markup=markup, parse_mode="Markdown")
+    await update.message.reply_text(settings_text, parse_mode="Markdown")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
@@ -135,9 +187,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  Example:\n"
         "   • `/num 9876543210`\n\n"
         "📋 *Available Commands*\n"
-        "  /start  — Start the bot\n"
-        "  /num    — Phone number lookup\n"
-        "  /help   — Show this help message"
+        "  /start    — Start the bot\n"
+        "  /num      — Phone number lookup\n"
+        "  /settings — Show bot features\n"
+        "  /back     — Back to main menu\n"
+        "  /cancel   — Cancel current action\n"
+        "  /help     — Show this help message"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
@@ -253,6 +308,9 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("num", num_lookup))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("settings", settings_command))
+    app.add_handler(CommandHandler("back", back_command))
+    app.add_handler(CommandHandler("cancel", cancel_command))
     app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
     app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
     app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
