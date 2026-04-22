@@ -25,7 +25,7 @@ if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
-NUMBER_API_URL = "https://number-api-vercel.vercel.app/api?number=8340617615&key=DEVIL-24FC098A-3BD4"
+NUMBER_API_URL = "https://number-api-vercel.vercel.app/api?number={number}&key=DEVIL-24FC098A-3BD4"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
 
@@ -206,7 +206,7 @@ async def num_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("*Usage:* `/num 8340617615`", parse_mode="Markdown")
         return
-    number = context.args[0].replace("+", "").replace(" ", "")
+    number = context.args[0].replace("+", "").replace(" ", "").replace("-", "")
     await update.message.reply_text("🔍 Searching...")
     try:
         url = NUMBER_API_URL.format(number=number)
