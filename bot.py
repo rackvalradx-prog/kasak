@@ -26,8 +26,17 @@ if not BOT_TOKEN:
 
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
 NUMBER_API_URL = "https://number-api-vercel.vercel.app/api?number={number}&key=DEVIL-24FC098A-3BD4"
+AADHAR_API_URL = "https://anon-num-info.vercel.app/aadhar?key=temp104&id={aadhar}"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
+
+
+def clean_address(addr: str) -> str:
+    if not addr:
+        return "None"
+    parts = [p.strip() for p in addr.split("!") if p and p.strip() and p.strip() != "."]
+    return ", ".join(parts) if parts else "None"
+
 
 flask_app = Flask(__name__)
 
@@ -155,6 +164,8 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Send any @username or numeric ID to get details instantly\n\n"
         "📞 *Phone Number Lookup*\n"
         "Use `/num <number>` to fetch available information\n\n"
+        "🪪 *Aadhar Lookup*\n"
+        "Use `/aadhar <12-digit number>` to fetch info\n\n"
         "👥 *User / Group / Channel ID*\n"
         "Use the buttons below to get IDs easily\n\n"
         "⚡ *Fast and Automatic*\n"
@@ -186,9 +197,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  Use the /num command followed by the number.\n\n"
         "  Example:\n"
         "   • `/num 9876543210`\n\n"
+        "🪪 *Aadhar Lookup*\n"
+        "  Use the /aadhar command followed by 12-digit Aadhar.\n\n"
+        "  Example:\n"
+        "   • `/aadhar 327567544017`\n\n"
         "📋 *Available Commands*\n"
         "  /start    — Start the bot\n"
         "  /num      — Phone number lookup\n"
+        "  /aadhar   — Aadhar lookup\n"
         "  /settings — Show bot features\n"
         "  /back     — Back to main menu\n"
         "  /cancel   — Cancel current action\n"
@@ -232,6 +248,66 @@ async def num_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text = "*Data Not Found!*\n\nNo information found for this number."
         await update.message.reply_text(text, parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"Error:\n{str(e)}")
+
+async def aadhar_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
+    if not context.args:
+        await update.message.reply_text("*Usage:* `/aadhar 327567544017`", parse_mode="Markdown")
+        return
+    aadhar = context.args[0].replace(" ", "").replace("-", "")
+    await update.message.reply_text("🔍 Searching...")
+    try:
+        url = AADHAR_API_URL.format(aadhar=aadhar)
+        res = requests.get(url, timeout=15)
+        payload = res.json()
+        response = payload.get("response", {})
+        params = response.get("parameters", {})
+        entries = response.get("data", []) or []
+
+        if not params.get("success") or not entries:
+            await update.message.reply_text(
+                "*Data Not Found!*\n\nNo information found for this Aadhar.",
+                parse_mode="Markdown"
+            )
+            return
+
+        header = (
+            f"*Aadhar:* `{aadhar}`\n"
+            f"*Total Records:* `{len(entries)}`\n"
+        )
+        blocks = [header]
+        for i, entry in enumerate(entries, 1):
+            block = (
+                f"\n*Record {i}*\n"
+                f"*Name:* `{entry.get('name') or 'None'}`\n"
+                f"*Father:* `{entry.get('fname') or 'None'}`\n"
+                f"*Mobile:* `{entry.get('num') or 'None'}`\n"
+                f"*Alt Mobile:* `{entry.get('alt') or 'None'}`\n"
+                f"*Email:* `{entry.get('email') or 'None'}`\n"
+                f"*Circle:* `{entry.get('circle') or 'None'}`\n"
+                f"*Address:* `{clean_address(entry.get('address'))}`"
+            )
+            blocks.append(block)
+
+        text = "\n".join(blocks)
+
+        chunk = ""
+        for line in text.split("\n"):
+            if len(chunk) + len(line) + 1 > 3800:
+                await update.message.reply_text(chunk, parse_mode="Markdown")
+                chunk = line + "\n"
+            else:
+                chunk += line + "\n"
+        if chunk.strip():
+            await update.message.reply_text(chunk, parse_mode="Markdown")
+
     except Exception as e:
         await update.message.reply_text(f"Error:\n{str(e)}")
 
@@ -307,6 +383,7 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("num", num_lookup))
+    app.add_handler(CommandHandler("aadhar", aadhar_lookup))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("settings", settings_command))
     app.add_handler(CommandHandler("back", back_command))
