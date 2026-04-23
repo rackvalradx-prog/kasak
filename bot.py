@@ -32,7 +32,7 @@ CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
 
 
-def clean_address(addr: str) -> str:
+def clean_address(addr):
     if not addr:
         return "None"
     parts = [p.strip() for p in addr.split("!") if p and p.strip() and p.strip() != "."]
@@ -41,27 +41,32 @@ def clean_address(addr: str) -> str:
 
 flask_app = Flask(__name__)
 
+
 @flask_app.route("/")
 def home():
     return "Bot is Alive!"
 
+
 def run_flask():
     port = int(os.environ.get("PORT", 8000))
     flask_app.run(host="0.0.0.0", port=port)
+
 
 def keep_alive():
     t = Thread(target=run_flask)
     t.daemon = True
     t.start()
 
-async def is_member(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
+
+async def is_member(user_id, context):
     try:
         member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
         return member.status in ["member", "administrator", "creator"]
     except Exception:
         return False
 
-async def send_join_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def send_join_message(update, context):
     user = update.message.from_user
     first_name = user.first_name or "User"
     join_button = InlineKeyboardMarkup([
@@ -76,7 +81,8 @@ async def send_join_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sent = await update.message.reply_text(text, reply_markup=join_button, parse_mode="Markdown")
     context.user_data["join_msg_id"] = sent.message_id
 
-async def delete_join_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+
+async def delete_join_message(context, chat_id):
     msg_id = context.user_data.get("join_msg_id")
     if msg_id:
         try:
@@ -90,7 +96,8 @@ async def delete_join_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
             parse_mode="Markdown"
         )
 
-async def check_joined_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def check_joined_callback(update, context):
     query = update.callback_query
     user_id = query.from_user.id
     if await is_member(user_id, context):
@@ -104,13 +111,15 @@ async def check_joined_callback(update: Update, context: ContextTypes.DEFAULT_TY
     else:
         await query.answer("❌ You haven't joined yet! Please join first.", show_alert=True)
 
-def main_menu_markup() -> ReplyKeyboardMarkup:
+
+def main_menu_markup():
     btn_user = KeyboardButton(text="User", request_users=KeyboardButtonRequestUsers(request_id=1, max_quantity=1))
     btn_group = KeyboardButton(text="Group", request_chat=KeyboardButtonRequestChat(request_id=2, chat_is_channel=False))
     btn_channel = KeyboardButton(text="Channel", request_chat=KeyboardButtonRequestChat(request_id=3, chat_is_channel=True))
     return ReplyKeyboardMarkup([[btn_user, btn_group, btn_channel]], resize_keyboard=True)
 
-async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, header: str = None):
+
+async def show_main_menu(update, context, header=None):
     user_id = update.message.from_user.id
     welcome_msg = (
         (header + "\n\n" if header else "")
@@ -122,7 +131,8 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, hea
     )
     await update.message.reply_text(welcome_msg, reply_markup=main_menu_markup(), parse_mode="Markdown")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def start(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -132,7 +142,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await show_main_menu(update, context)
 
-async def back_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def back_command(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -141,7 +152,8 @@ async def back_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await delete_join_message(context, chat_id)
     await show_main_menu(update, context, header="🔙 *Back to main menu.*")
 
-async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def cancel_command(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -151,7 +163,8 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await show_main_menu(update, context, header="❌ *Cancelled.*")
 
-async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def settings_command(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -180,7 +193,8 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(settings_text, parse_mode="Markdown")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def help_command(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -220,7 +234,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
-async def num_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def num_lookup(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -259,7 +274,8 @@ async def num_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Error:\n{str(e)}")
 
-async def aadhar_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def aadhar_lookup(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -278,14 +294,12 @@ async def aadhar_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = payload.get("response", {})
         params = response.get("parameters", {})
         entries = response.get("data", []) or []
-
         if not params.get("success") or not entries:
             await update.message.reply_text(
                 "*Data Not Found!*\n\nNo information found for this Aadhar.",
                 parse_mode="Markdown"
             )
             return
-
         header = (
             f"*Aadhar:* `{aadhar}`\n"
             f"*Total Records:* `{len(entries)}`\n"
@@ -303,9 +317,7 @@ async def aadhar_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"*Address:* `{clean_address(entry.get('address'))}`"
             )
             blocks.append(block)
-
         text = "\n".join(blocks)
-
         chunk = ""
         for line in text.split("\n"):
             if len(chunk) + len(line) + 1 > 3800:
@@ -315,11 +327,11 @@ async def aadhar_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chunk += line + "\n"
         if chunk.strip():
             await update.message.reply_text(chunk, parse_mode="Markdown")
-
     except Exception as e:
         await update.message.reply_text(f"Error:\n{str(e)}")
 
-async def vehicle_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def vehicle_lookup(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -335,14 +347,12 @@ async def vehicle_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         url = VEHICLE_API_URL.format(vehicle=vehicle)
         res = requests.get(url, timeout=15)
         data = res.json()
-
         if not data or "Ownership Details" not in data:
             await update.message.reply_text(
                 "*Data Not Found!*\n\nNo information found for this vehicle.",
                 parse_mode="Markdown"
             )
             return
-
         own = data.get("Ownership Details", {}) or {}
         veh = data.get("Vehicle Details", {}) or {}
         ins = data.get("Insurance Information", {}) or {}
@@ -350,19 +360,16 @@ async def vehicle_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         other = data.get("Other Information", {}) or {}
         card = data.get("Basic Card Info", {}) or {}
         ins_alert = data.get("Insurance Alert", {}) or {}
-
         expired_days = ins_alert.get("Expired Days")
         ins_status = dates.get("Insurance Expiry In") or "N/A"
         if expired_days and "expired" in ins_status.lower():
             ins_status = f"Expired ({expired_days} days ago)"
-
         father_name = own.get("Father's Name") or "N/A"
         owner_name = own.get("Owner Name") or "N/A"
         owner_serial = own.get("Owner Serial No") or "N/A"
         rto_name = own.get("Registered RTO") or "N/A"
         rto_code = card.get("Code") or "N/A"
         reg_no = data.get("registration_number") or vehicle
-
         maker = veh.get("Model Name") or "N/A"
         model = veh.get("Maker Model") or "N/A"
         v_class = veh.get("Vehicle Class") or "N/A"
@@ -372,11 +379,9 @@ async def vehicle_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         engine = veh.get("Engine Number") or "N/A"
         cc = other.get("Cubic Capacity") or "N/A"
         seating = other.get("Seating Capacity") or "N/A"
-
         ins_company = ins.get("Insurance Company") or "N/A"
         ins_no = ins.get("Insurance No") or "N/A"
         ins_expiry = ins.get("Insurance Expiry") or "N/A"
-
         reg_date = dates.get("Registration Date") or "N/A"
         v_age = dates.get("Vehicle Age") or "N/A"
         fitness = dates.get("Fitness Upto") or "N/A"
@@ -384,15 +389,12 @@ async def vehicle_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         puc_no = dates.get("PUC No") or "N/A"
         puc_upto = dates.get("PUC Upto") or "N/A"
         puc_status = dates.get("PUC Expiry In") or "N/A"
-
         financer = other.get("Financer Name") or "N/A"
         permit = other.get("Permit Type") or "N/A"
         blacklist = other.get("Blacklist Status") or "N/A"
         noc = other.get("NOC Details") or "N/A"
-
         city = card.get("City Name") or "N/A"
         address = card.get("Address") or "N/A"
-
         text = (
             f"*Vehicle:* `{reg_no}`\n\n"
             f"*Owner Details*\n"
@@ -432,13 +434,12 @@ async def vehicle_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"*City:* `{city}`\n"
             f"*Address:* `{address}`"
         )
-
         await update.message.reply_text(text, parse_mode="Markdown")
-
     except Exception as e:
         await update.message.reply_text(f"Error:\n{str(e)}")
 
-async def handle_users_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def handle_users_shared(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -449,7 +450,8 @@ async def handle_users_shared(update: Update, context: ContextTypes.DEFAULT_TYPE
         for user in update.message.users_shared.users:
             await update.message.reply_text(f"*User ID:* `{user.user_id}`", parse_mode="Markdown")
 
-async def handle_chat_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def handle_chat_shared(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -459,7 +461,8 @@ async def handle_chat_shared(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if update.message.chat_shared:
         await update.message.reply_text(f"*Chat ID:* `{update.message.chat_shared.chat_id}`", parse_mode="Markdown")
 
-async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def lookup(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
@@ -481,6 +484,21 @@ async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             result = data
         not_found = False
+        text = ""
         if isinstance(result, dict):
             if not result.get("success", True):
-           
+                not_found = True
+            else:
+                fields = {k: v for k, v in result.items() if k not in ("success", "msg")}
+                if not fields:
+                    not_found = True
+                else:
+                    lines = ["*Result:*\n"]
+                    for key, value in fields.items():
+                        label = key.replace("_", " ").title()
+                        lines.append(f"*{label}:* `{value}`")
+                    text = "\n".join(lines)
+        elif not result:
+            not_found = True
+        else:
+            text = f"*Result:
