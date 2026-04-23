@@ -31,6 +31,8 @@ VEHICLE_API_URL = "https://ayush-multi-api.vercel.app/api/veh?term={vehicle}"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
 
+FATHER_KEY = "Father" + chr(39) + "s Name"
+
 
 def clean_address(addr):
     if not addr:
@@ -41,22 +43,18 @@ def clean_address(addr):
 
 flask_app = Flask(__name__)
 
-
 @flask_app.route("/")
 def home():
     return "Bot is Alive!"
-
 
 def run_flask():
     port = int(os.environ.get("PORT", 8000))
     flask_app.run(host="0.0.0.0", port=port)
 
-
 def keep_alive():
     t = Thread(target=run_flask)
     t.daemon = True
     t.start()
-
 
 async def is_member(user_id, context):
     try:
@@ -65,22 +63,16 @@ async def is_member(user_id, context):
     except Exception:
         return False
 
-
 async def send_join_message(update, context):
     user = update.message.from_user
     first_name = user.first_name or "User"
     join_button = InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
-        [InlineKeyboardButton("✅ I've Joined", callback_data="check_joined")]
+        [InlineKeyboardButton("✅ I have Joined", callback_data="check_joined")]
     ])
-    text = (
-        f"⚠️ *Hello {first_name}!*\n\n"
-        f"Join our channel to use this bot.\n"
-        f"After joining, click *I've Joined* button."
-    )
+    text = "⚠️ *Hello " + first_name + "!*\n\nJoin our channel to use this bot.\nAfter joining, click *I have Joined* button."
     sent = await update.message.reply_text(text, reply_markup=join_button, parse_mode="Markdown")
     context.user_data["join_msg_id"] = sent.message_id
-
 
 async def delete_join_message(context, chat_id):
     msg_id = context.user_data.get("join_msg_id")
@@ -96,7 +88,6 @@ async def delete_join_message(context, chat_id):
             parse_mode="Markdown"
         )
 
-
 async def check_joined_callback(update, context):
     query = update.callback_query
     user_id = query.from_user.id
@@ -109,8 +100,7 @@ async def check_joined_callback(update, context):
             parse_mode="Markdown"
         )
     else:
-        await query.answer("❌ You haven't joined yet! Please join first.", show_alert=True)
-
+        await query.answer("❌ You have not joined yet! Please join first.", show_alert=True)
 
 def main_menu_markup():
     btn_user = KeyboardButton(text="User", request_users=KeyboardButtonRequestUsers(request_id=1, max_quantity=1))
@@ -118,19 +108,18 @@ def main_menu_markup():
     btn_channel = KeyboardButton(text="Channel", request_chat=KeyboardButtonRequestChat(request_id=3, chat_is_channel=True))
     return ReplyKeyboardMarkup([[btn_user, btn_group, btn_channel]], resize_keyboard=True)
 
-
 async def show_main_menu(update, context, header=None):
     user_id = update.message.from_user.id
-    welcome_msg = (
-        (header + "\n\n" if header else "")
-        + "*Welcome To @racksunbot*\n\n"
-        + f"*Your ID :* `{user_id}`\n\n"
-        + "Send me a Telegram username or number to look up.\n"
-        + "Example: @username or 1234567890\n\n"
-        + "Or use the buttons below to get User/Group/Channel ID:"
-    )
+    parts = []
+    if header:
+        parts.append(header + "\n\n")
+    parts.append("*Welcome To @racksunbot*\n\n")
+    parts.append("*Your ID :* `" + str(user_id) + "`\n\n")
+    parts.append("Send me a Telegram username or number to look up.\n")
+    parts.append("Example: @username or 1234567890\n\n")
+    parts.append("Or use the buttons below to get User/Group/Channel ID:")
+    welcome_msg = "".join(parts)
     await update.message.reply_text(welcome_msg, reply_markup=main_menu_markup(), parse_mode="Markdown")
-
 
 async def start(update, context):
     user_id = update.message.from_user.id
@@ -142,7 +131,6 @@ async def start(update, context):
     context.user_data.clear()
     await show_main_menu(update, context)
 
-
 async def back_command(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
@@ -151,7 +139,6 @@ async def back_command(update, context):
         return
     await delete_join_message(context, chat_id)
     await show_main_menu(update, context, header="🔙 *Back to main menu.*")
-
 
 async def cancel_command(update, context):
     user_id = update.message.from_user.id
@@ -162,7 +149,6 @@ async def cancel_command(update, context):
     await delete_join_message(context, chat_id)
     context.user_data.clear()
     await show_main_menu(update, context, header="❌ *Cancelled.*")
-
 
 async def settings_command(update, context):
     user_id = update.message.from_user.id
@@ -193,7 +179,6 @@ async def settings_command(update, context):
     )
     await update.message.reply_text(settings_text, parse_mode="Markdown")
 
-
 async def help_command(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
@@ -203,7 +188,7 @@ async def help_command(update, context):
     await delete_join_message(context, chat_id)
     help_text = (
         "🤖 *Welcome to @racksunbot Help*\n\n"
-        "Here's how to use this bot:\n\n"
+        "Here is how to use this bot:\n\n"
         "📱 *Telegram Username / UID Lookup*\n"
         "  Just send the username or UID directly in chat.\n"
         "  No command needed.\n\n"
@@ -234,7 +219,6 @@ async def help_command(update, context):
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
-
 async def num_lookup(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
@@ -253,27 +237,27 @@ async def num_lookup(update, context):
         data = res.json()
         if data.get("status") == "found" and data.get("data"):
             entries = data["data"]
-            lines = [f"*Number:* `{data.get('number')}` | *Records:* `{data.get('total')}`\n"]
+            lines = []
+            lines.append("*Number:* `" + str(data.get("number")) + "` | *Records:* `" + str(data.get("total")) + "`\n")
             for i, entry in enumerate(entries, 1):
-                lines.append(f"*Record {i}*")
-                lines.append(f"*Name:* `{entry.get('name') or 'None'}`")
-                lines.append(f"*Father:* `{entry.get('father_name') or 'None'}`")
-                lines.append(f"*Mobile:* `{entry.get('mobile') or 'None'}`")
-                lines.append(f"*Alt Mobile:* `{entry.get('alt_mobile') or 'None'}`")
-                lines.append(f"*Email:* `{entry.get('email') or 'None'}`")
-                lines.append(f"*Address:* `{entry.get('address') or 'None'}`")
-                lines.append(f"*State:* `{entry.get('state') or 'None'}`")
-                lines.append(f"*Pincode:* `{entry.get('pincode') or 'None'}`")
-                lines.append(f"*Circle:* `{entry.get('circle') or 'None'}`")
-                lines.append(f"*National ID:* `{entry.get('national_id') or 'None'}`")
+                lines.append("*Record " + str(i) + "*")
+                lines.append("*Name:* `" + str(entry.get("name") or "None") + "`")
+                lines.append("*Father:* `" + str(entry.get("father_name") or "None") + "`")
+                lines.append("*Mobile:* `" + str(entry.get("mobile") or "None") + "`")
+                lines.append("*Alt Mobile:* `" + str(entry.get("alt_mobile") or "None") + "`")
+                lines.append("*Email:* `" + str(entry.get("email") or "None") + "`")
+                lines.append("*Address:* `" + str(entry.get("address") or "None") + "`")
+                lines.append("*State:* `" + str(entry.get("state") or "None") + "`")
+                lines.append("*Pincode:* `" + str(entry.get("pincode") or "None") + "`")
+                lines.append("*Circle:* `" + str(entry.get("circle") or "None") + "`")
+                lines.append("*National ID:* `" + str(entry.get("national_id") or "None") + "`")
                 lines.append("")
             text = "\n".join(lines)
         else:
             text = "*Data Not Found!*\n\nNo information found for this number."
         await update.message.reply_text(text, parse_mode="Markdown")
     except Exception as e:
-        await update.message.reply_text(f"Error:\n{str(e)}")
-
+        await update.message.reply_text("Error:\n" + str(e))
 
 async def aadhar_lookup(update, context):
     user_id = update.message.from_user.id
@@ -295,27 +279,19 @@ async def aadhar_lookup(update, context):
         params = response.get("parameters", {})
         entries = response.get("data", []) or []
         if not params.get("success") or not entries:
-            await update.message.reply_text(
-                "*Data Not Found!*\n\nNo information found for this Aadhar.",
-                parse_mode="Markdown"
-            )
+            await update.message.reply_text("*Data Not Found!*\n\nNo information found for this Aadhar.", parse_mode="Markdown")
             return
-        header = (
-            f"*Aadhar:* `{aadhar}`\n"
-            f"*Total Records:* `{len(entries)}`\n"
-        )
+        header = "*Aadhar:* `" + aadhar + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
         blocks = [header]
         for i, entry in enumerate(entries, 1):
-            block = (
-                f"\n*Record {i}*\n"
-                f"*Name:* `{entry.get('name') or 'None'}`\n"
-                f"*Father:* `{entry.get('fname') or 'None'}`\n"
-                f"*Mobile:* `{entry.get('num') or 'None'}`\n"
-                f"*Alt Mobile:* `{entry.get('alt') or 'None'}`\n"
-                f"*Email:* `{entry.get('email') or 'None'}`\n"
-                f"*Circle:* `{entry.get('circle') or 'None'}`\n"
-                f"*Address:* `{clean_address(entry.get('address'))}`"
-            )
+            block = "\n*Record " + str(i) + "*\n"
+            block += "*Name:* `" + str(entry.get("name") or "None") + "`\n"
+            block += "*Father:* `" + str(entry.get("fname") or "None") + "`\n"
+            block += "*Mobile:* `" + str(entry.get("num") or "None") + "`\n"
+            block += "*Alt Mobile:* `" + str(entry.get("alt") or "None") + "`\n"
+            block += "*Email:* `" + str(entry.get("email") or "None") + "`\n"
+            block += "*Circle:* `" + str(entry.get("circle") or "None") + "`\n"
+            block += "*Address:* `" + clean_address(entry.get("address")) + "`"
             blocks.append(block)
         text = "\n".join(blocks)
         chunk = ""
@@ -328,8 +304,7 @@ async def aadhar_lookup(update, context):
         if chunk.strip():
             await update.message.reply_text(chunk, parse_mode="Markdown")
     except Exception as e:
-        await update.message.reply_text(f"Error:\n{str(e)}")
-
+        await update.message.reply_text("Error:\n" + str(e))
 
 async def vehicle_lookup(update, context):
     user_id = update.message.from_user.id
@@ -348,10 +323,7 @@ async def vehicle_lookup(update, context):
         res = requests.get(url, timeout=15)
         data = res.json()
         if not data or "Ownership Details" not in data:
-            await update.message.reply_text(
-                "*Data Not Found!*\n\nNo information found for this vehicle.",
-                parse_mode="Markdown"
-            )
+            await update.message.reply_text("*Data Not Found!*\n\nNo information found for this vehicle.", parse_mode="Markdown")
             return
         own = data.get("Ownership Details", {}) or {}
         veh = data.get("Vehicle Details", {}) or {}
@@ -363,8 +335,8 @@ async def vehicle_lookup(update, context):
         expired_days = ins_alert.get("Expired Days")
         ins_status = dates.get("Insurance Expiry In") or "N/A"
         if expired_days and "expired" in ins_status.lower():
-            ins_status = f"Expired ({expired_days} days ago)"
-        father_name = own.get("Father's Name") or "N/A"
+            ins_status = "Expired (" + str(expired_days) + " days ago)"
+        father_name = own.get(FATHER_KEY) or "N/A"
         owner_name = own.get("Owner Name") or "N/A"
         owner_serial = own.get("Owner Serial No") or "N/A"
         rto_name = own.get("Registered RTO") or "N/A"
@@ -395,49 +367,46 @@ async def vehicle_lookup(update, context):
         noc = other.get("NOC Details") or "N/A"
         city = card.get("City Name") or "N/A"
         address = card.get("Address") or "N/A"
-        text = (
-            f"*Vehicle:* `{reg_no}`\n\n"
-            f"*Owner Details*\n"
-            f"*Name:* `{owner_name}`\n"
-            f"*Father:* `{father_name}`\n"
-            f"*Owner Serial:* `{owner_serial}`\n"
-            f"*RTO:* `{rto_name} ({rto_code})`\n\n"
-            f"*Vehicle Info*\n"
-            f"*Maker:* `{maker}`\n"
-            f"*Model:* `{model}`\n"
-            f"*Class:* `{v_class}`\n"
-            f"*Fuel:* `{fuel}`\n"
-            f"*Fuel Norms:* `{norms}`\n"
-            f"*Chassis:* `{chassis}`\n"
-            f"*Engine:* `{engine}`\n"
-            f"*Cubic Capacity:* `{cc}`\n"
-            f"*Seating:* `{seating}`\n\n"
-            f"*Insurance*\n"
-            f"*Company:* `{ins_company}`\n"
-            f"*Policy No:* `{ins_no}`\n"
-            f"*Expiry:* `{ins_expiry}`\n"
-            f"*Status:* `{ins_status}`\n\n"
-            f"*Validity & Dates*\n"
-            f"*Registration Date:* `{reg_date}`\n"
-            f"*Vehicle Age:* `{v_age}`\n"
-            f"*Fitness Upto:* `{fitness}`\n"
-            f"*Tax Upto:* `{tax}`\n"
-            f"*PUC No:* `{puc_no}`\n"
-            f"*PUC Upto:* `{puc_upto}`\n"
-            f"*PUC Status:* `{puc_status}`\n\n"
-            f"*Other*\n"
-            f"*Financer:* `{financer}`\n"
-            f"*Permit Type:* `{permit}`\n"
-            f"*Blacklist:* `{blacklist}`\n"
-            f"*NOC:* `{noc}`\n\n"
-            f"*RTO Office*\n"
-            f"*City:* `{city}`\n"
-            f"*Address:* `{address}`"
-        )
+        text = "🚗 *Vehicle:* `" + str(reg_no) + "`\n\n"
+        text += "👤 *Owner Details*\n"
+        text += "*Name:* `" + str(owner_name) + "`\n"
+        text += "*Father:* `" + str(father_name) + "`\n"
+        text += "*Owner Serial:* `" + str(owner_serial) + "`\n"
+        text += "*RTO:* `" + str(rto_name) + " (" + str(rto_code) + ")`\n\n"
+        text += "🚘 *Vehicle Info*\n"
+        text += "*Maker:* `" + str(maker) + "`\n"
+        text += "*Model:* `" + str(model) + "`\n"
+        text += "*Class:* `" + str(v_class) + "`\n"
+        text += "*Fuel:* `" + str(fuel) + "`\n"
+        text += "*Fuel Norms:* `" + str(norms) + "`\n"
+        text += "*Chassis:* `" + str(chassis) + "`\n"
+        text += "*Engine:* `" + str(engine) + "`\n"
+        text += "*Cubic Capacity:* `" + str(cc) + "`\n"
+        text += "*Seating:* `" + str(seating) + "`\n\n"
+        text += "🛡 *Insurance*\n"
+        text += "*Company:* `" + str(ins_company) + "`\n"
+        text += "*Policy No:* `" + str(ins_no) + "`\n"
+        text += "*Expiry:* `" + str(ins_expiry) + "`\n"
+        text += "*Status:* `" + str(ins_status) + "`\n\n"
+        text += "📅 *Validity & Dates*\n"
+        text += "*Registration Date:* `" + str(reg_date) + "`\n"
+        text += "*Vehicle Age:* `" + str(v_age) + "`\n"
+        text += "*Fitness Upto:* `" + str(fitness) + "`\n"
+        text += "*Tax Upto:* `" + str(tax) + "`\n"
+        text += "*PUC No:* `" + str(puc_no) + "`\n"
+        text += "*PUC Upto:* `" + str(puc_upto) + "`\n"
+        text += "*PUC Status:* `" + str(puc_status) + "`\n\n"
+        text += "ℹ️ *Other*\n"
+        text += "*Financer:* `" + str(financer) + "`\n"
+        text += "*Permit Type:* `" + str(permit) + "`\n"
+        text += "*Blacklist:* `" + str(blacklist) + "`\n"
+        text += "*NOC:* `" + str(noc) + "`\n\n"
+        text += "🏢 *RTO Office*\n"
+        text += "*City:* `" + str(city) + "`\n"
+        text += "*Address:* `" + str(address) + "`"
         await update.message.reply_text(text, parse_mode="Markdown")
     except Exception as e:
-        await update.message.reply_text(f"Error:\n{str(e)}")
-
+        await update.message.reply_text("Error:\n" + str(e))
 
 async def handle_users_shared(update, context):
     user_id = update.message.from_user.id
@@ -448,8 +417,7 @@ async def handle_users_shared(update, context):
     await delete_join_message(context, chat_id)
     if update.message.users_shared:
         for user in update.message.users_shared.users:
-            await update.message.reply_text(f"*User ID:* `{user.user_id}`", parse_mode="Markdown")
-
+            await update.message.reply_text("*User ID:* `" + str(user.user_id) + "`", parse_mode="Markdown")
 
 async def handle_chat_shared(update, context):
     user_id = update.message.from_user.id
@@ -459,8 +427,7 @@ async def handle_chat_shared(update, context):
         return
     await delete_join_message(context, chat_id)
     if update.message.chat_shared:
-        await update.message.reply_text(f"*Chat ID:* `{update.message.chat_shared.chat_id}`", parse_mode="Markdown")
-
+        await update.message.reply_text("*Chat ID:* `" + str(update.message.chat_shared.chat_id) + "`", parse_mode="Markdown")
 
 async def lookup(update, context):
     user_id = update.message.from_user.id
@@ -485,20 +452,3 @@ async def lookup(update, context):
             result = data
         not_found = False
         text = ""
-        if isinstance(result, dict):
-            if not result.get("success", True):
-                not_found = True
-            else:
-                fields = {k: v for k, v in result.items() if k not in ("success", "msg")}
-                if not fields:
-                    not_found = True
-                else:
-                    lines = ["*Result:*\n"]
-                    for key, value in fields.items():
-                        label = key.replace("_", " ").title()
-                        lines.append(f"*{label}:* `{value}`")
-                    text = "\n".join(lines)
-        elif not result:
-            not_found = True
-        else:
-            text = f"*Result:
