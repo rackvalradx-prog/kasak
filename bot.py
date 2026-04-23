@@ -356,44 +356,81 @@ async def vehicle_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if expired_days and "expired" in ins_status.lower():
             ins_status = f"Expired ({expired_days} days ago)"
 
+        father_name = own.get("Father's Name") or "N/A"
+        owner_name = own.get("Owner Name") or "N/A"
+        owner_serial = own.get("Owner Serial No") or "N/A"
+        rto_name = own.get("Registered RTO") or "N/A"
+        rto_code = card.get("Code") or "N/A"
+        reg_no = data.get("registration_number") or vehicle
+
+        maker = veh.get("Model Name") or "N/A"
+        model = veh.get("Maker Model") or "N/A"
+        v_class = veh.get("Vehicle Class") or "N/A"
+        fuel = veh.get("Fuel Type") or "N/A"
+        norms = veh.get("Fuel Norms") or "N/A"
+        chassis = veh.get("Chassis Number") or "N/A"
+        engine = veh.get("Engine Number") or "N/A"
+        cc = other.get("Cubic Capacity") or "N/A"
+        seating = other.get("Seating Capacity") or "N/A"
+
+        ins_company = ins.get("Insurance Company") or "N/A"
+        ins_no = ins.get("Insurance No") or "N/A"
+        ins_expiry = ins.get("Insurance Expiry") or "N/A"
+
+        reg_date = dates.get("Registration Date") or "N/A"
+        v_age = dates.get("Vehicle Age") or "N/A"
+        fitness = dates.get("Fitness Upto") or "N/A"
+        tax = dates.get("Tax Upto") or "N/A"
+        puc_no = dates.get("PUC No") or "N/A"
+        puc_upto = dates.get("PUC Upto") or "N/A"
+        puc_status = dates.get("PUC Expiry In") or "N/A"
+
+        financer = other.get("Financer Name") or "N/A"
+        permit = other.get("Permit Type") or "N/A"
+        blacklist = other.get("Blacklist Status") or "N/A"
+        noc = other.get("NOC Details") or "N/A"
+
+        city = card.get("City Name") or "N/A"
+        address = card.get("Address") or "N/A"
+
         text = (
-            f"*Vehicle:* `{data.get('registration_number') or vehicle}`\n\n"
+            f"*Vehicle:* `{reg_no}`\n\n"
             f"*Owner Details*\n"
-            f"*Name:* `{own.get('Owner Name') or 'N/A'}`\n"
-            f"*Father:* `{own.get(\"Father's Name\") or 'N/A'}`\n"
-            f"*Owner Serial:* `{own.get('Owner Serial No') or 'N/A'}`\n"
-            f"*RTO:* `{own.get('Registered RTO') or 'N/A'} ({card.get('Code') or 'N/A'})`\n\n"
+            f"*Name:* `{owner_name}`\n"
+            f"*Father:* `{father_name}`\n"
+            f"*Owner Serial:* `{owner_serial}`\n"
+            f"*RTO:* `{rto_name} ({rto_code})`\n\n"
             f"*Vehicle Info*\n"
-            f"*Maker:* `{veh.get('Model Name') or 'N/A'}`\n"
-            f"*Model:* `{veh.get('Maker Model') or 'N/A'}`\n"
-            f"*Class:* `{veh.get('Vehicle Class') or 'N/A'}`\n"
-            f"*Fuel:* `{veh.get('Fuel Type') or 'N/A'}`\n"
-            f"*Fuel Norms:* `{veh.get('Fuel Norms') or 'N/A'}`\n"
-            f"*Chassis:* `{veh.get('Chassis Number') or 'N/A'}`\n"
-            f"*Engine:* `{veh.get('Engine Number') or 'N/A'}`\n"
-            f"*Cubic Capacity:* `{other.get('Cubic Capacity') or 'N/A'}`\n"
-            f"*Seating:* `{other.get('Seating Capacity') or 'N/A'}`\n\n"
+            f"*Maker:* `{maker}`\n"
+            f"*Model:* `{model}`\n"
+            f"*Class:* `{v_class}`\n"
+            f"*Fuel:* `{fuel}`\n"
+            f"*Fuel Norms:* `{norms}`\n"
+            f"*Chassis:* `{chassis}`\n"
+            f"*Engine:* `{engine}`\n"
+            f"*Cubic Capacity:* `{cc}`\n"
+            f"*Seating:* `{seating}`\n\n"
             f"*Insurance*\n"
-            f"*Company:* `{ins.get('Insurance Company') or 'N/A'}`\n"
-            f"*Policy No:* `{ins.get('Insurance No') or 'N/A'}`\n"
-            f"*Expiry:* `{ins.get('Insurance Expiry') or 'N/A'}`\n"
+            f"*Company:* `{ins_company}`\n"
+            f"*Policy No:* `{ins_no}`\n"
+            f"*Expiry:* `{ins_expiry}`\n"
             f"*Status:* `{ins_status}`\n\n"
             f"*Validity & Dates*\n"
-            f"*Registration Date:* `{dates.get('Registration Date') or 'N/A'}`\n"
-            f"*Vehicle Age:* `{dates.get('Vehicle Age') or 'N/A'}`\n"
-            f"*Fitness Upto:* `{dates.get('Fitness Upto') or 'N/A'}`\n"
-            f"*Tax Upto:* `{dates.get('Tax Upto') or 'N/A'}`\n"
-            f"*PUC No:* `{dates.get('PUC No') or 'N/A'}`\n"
-            f"*PUC Upto:* `{dates.get('PUC Upto') or 'N/A'}`\n"
-            f"*PUC Status:* `{dates.get('PUC Expiry In') or 'N/A'}`\n\n"
+            f"*Registration Date:* `{reg_date}`\n"
+            f"*Vehicle Age:* `{v_age}`\n"
+            f"*Fitness Upto:* `{fitness}`\n"
+            f"*Tax Upto:* `{tax}`\n"
+            f"*PUC No:* `{puc_no}`\n"
+            f"*PUC Upto:* `{puc_upto}`\n"
+            f"*PUC Status:* `{puc_status}`\n\n"
             f"*Other*\n"
-            f"*Financer:* `{other.get('Financer Name') or 'N/A'}`\n"
-            f"*Permit Type:* `{other.get('Permit Type') or 'N/A'}`\n"
-            f"*Blacklist:* `{other.get('Blacklist Status') or 'N/A'}`\n"
-            f"*NOC:* `{other.get('NOC Details') or 'N/A'}`\n\n"
+            f"*Financer:* `{financer}`\n"
+            f"*Permit Type:* `{permit}`\n"
+            f"*Blacklist:* `{blacklist}`\n"
+            f"*NOC:* `{noc}`\n\n"
             f"*RTO Office*\n"
-            f"*City:* `{card.get('City Name') or 'N/A'}`\n"
-            f"*Address:* `{card.get('Address') or 'N/A'}`"
+            f"*City:* `{city}`\n"
+            f"*Address:* `{address}`"
         )
 
         await update.message.reply_text(text, parse_mode="Markdown")
@@ -446,23 +483,4 @@ async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         not_found = False
         if isinstance(result, dict):
             if not result.get("success", True):
-                not_found = True
-            else:
-                fields = {k: v for k, v in result.items() if k not in ("success", "msg")}
-                if not fields:
-                    not_found = True
-                else:
-                    lines = ["*Result:*\n"]
-                    for key, value in fields.items():
-                        label = key.replace("_", " ").title()
-                        lines.append(f"*{label}:* `{value}`")
-                    text = "\n".join(lines)
-        elif not result:
-            not_found = True
-        else:
-            text = f"*Result:*\n`{result}`"
-        if not_found:
-            text = "*Data Not Found!*\n\nNo information found for this username."
-        await update.message.reply_text(text, parse_mode="Markdown")
-    except Exception as e:
-      
+           
