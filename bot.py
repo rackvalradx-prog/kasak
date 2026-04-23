@@ -27,6 +27,7 @@ if not BOT_TOKEN:
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
 NUMBER_API_URL = "https://number-api-vercel.vercel.app/api?number={number}&key=DEVIL-24FC098A-3BD4"
 AADHAR_API_URL = "https://anon-num-info.vercel.app/aadhar?key=temp104&id={aadhar}"
+VEHICLE_API_URL = "https://ayush-multi-api.vercel.app/api/veh?term={vehicle}"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
 
@@ -166,6 +167,8 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Use `/num <number>` to fetch available information\n\n"
         "🪪 *Aadhar Lookup*\n"
         "Use `/aadhar <12-digit number>` to fetch info\n\n"
+        "🚗 *Vehicle Lookup*\n"
+        "Use `/veh <reg number>` to fetch vehicle info\n\n"
         "👥 *User / Group / Channel ID*\n"
         "Use the buttons below to get IDs easily\n\n"
         "⚡ *Fast and Automatic*\n"
@@ -201,10 +204,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  Use the /aadhar command followed by 12-digit Aadhar.\n\n"
         "  Example:\n"
         "   • `/aadhar 327567544017`\n\n"
+        "🚗 *Vehicle Lookup*\n"
+        "  Use the /veh command followed by registration number.\n\n"
+        "  Example:\n"
+        "   • `/veh UP26R4007`\n\n"
         "📋 *Available Commands*\n"
         "  /start    — Start the bot\n"
         "  /num      — Phone number lookup\n"
         "  /aadhar   — Aadhar lookup\n"
+        "  /veh      — Vehicle lookup\n"
         "  /settings — Show bot features\n"
         "  /back     — Back to main menu\n"
         "  /cancel   — Cancel current action\n"
@@ -311,6 +319,88 @@ async def aadhar_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Error:\n{str(e)}")
 
+async def vehicle_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
+    if not context.args:
+        await update.message.reply_text("*Usage:* `/veh UP26R4007`", parse_mode="Markdown")
+        return
+    vehicle = context.args[0].replace(" ", "").replace("-", "").upper()
+    await update.message.reply_text("🔍 Searching...")
+    try:
+        url = VEHICLE_API_URL.format(vehicle=vehicle)
+        res = requests.get(url, timeout=15)
+        data = res.json()
+
+        if not data or "Ownership Details" not in data:
+            await update.message.reply_text(
+                "*Data Not Found!*\n\nNo information found for this vehicle.",
+                parse_mode="Markdown"
+            )
+            return
+
+        own = data.get("Ownership Details", {}) or {}
+        veh = data.get("Vehicle Details", {}) or {}
+        ins = data.get("Insurance Information", {}) or {}
+        dates = data.get("Important Dates & Validity", {}) or {}
+        other = data.get("Other Information", {}) or {}
+        card = data.get("Basic Card Info", {}) or {}
+        ins_alert = data.get("Insurance Alert", {}) or {}
+
+        expired_days = ins_alert.get("Expired Days")
+        ins_status = dates.get("Insurance Expiry In") or "N/A"
+        if expired_days and "expired" in ins_status.lower():
+            ins_status = f"Expired ({expired_days} days ago)"
+
+        text = (
+            f"*Vehicle:* `{data.get('registration_number') or vehicle}`\n\n"
+            f"*Owner Details*\n"
+            f"*Name:* `{own.get('Owner Name') or 'N/A'}`\n"
+            f"*Father:* `{own.get(\"Father's Name\") or 'N/A'}`\n"
+            f"*Owner Serial:* `{own.get('Owner Serial No') or 'N/A'}`\n"
+            f"*RTO:* `{own.get('Registered RTO') or 'N/A'} ({card.get('Code') or 'N/A'})`\n\n"
+            f"*Vehicle Info*\n"
+            f"*Maker:* `{veh.get('Model Name') or 'N/A'}`\n"
+            f"*Model:* `{veh.get('Maker Model') or 'N/A'}`\n"
+            f"*Class:* `{veh.get('Vehicle Class') or 'N/A'}`\n"
+            f"*Fuel:* `{veh.get('Fuel Type') or 'N/A'}`\n"
+            f"*Fuel Norms:* `{veh.get('Fuel Norms') or 'N/A'}`\n"
+            f"*Chassis:* `{veh.get('Chassis Number') or 'N/A'}`\n"
+            f"*Engine:* `{veh.get('Engine Number') or 'N/A'}`\n"
+            f"*Cubic Capacity:* `{other.get('Cubic Capacity') or 'N/A'}`\n"
+            f"*Seating:* `{other.get('Seating Capacity') or 'N/A'}`\n\n"
+            f"*Insurance*\n"
+            f"*Company:* `{ins.get('Insurance Company') or 'N/A'}`\n"
+            f"*Policy No:* `{ins.get('Insurance No') or 'N/A'}`\n"
+            f"*Expiry:* `{ins.get('Insurance Expiry') or 'N/A'}`\n"
+            f"*Status:* `{ins_status}`\n\n"
+            f"*Validity & Dates*\n"
+            f"*Registration Date:* `{dates.get('Registration Date') or 'N/A'}`\n"
+            f"*Vehicle Age:* `{dates.get('Vehicle Age') or 'N/A'}`\n"
+            f"*Fitness Upto:* `{dates.get('Fitness Upto') or 'N/A'}`\n"
+            f"*Tax Upto:* `{dates.get('Tax Upto') or 'N/A'}`\n"
+            f"*PUC No:* `{dates.get('PUC No') or 'N/A'}`\n"
+            f"*PUC Upto:* `{dates.get('PUC Upto') or 'N/A'}`\n"
+            f"*PUC Status:* `{dates.get('PUC Expiry In') or 'N/A'}`\n\n"
+            f"*Other*\n"
+            f"*Financer:* `{other.get('Financer Name') or 'N/A'}`\n"
+            f"*Permit Type:* `{other.get('Permit Type') or 'N/A'}`\n"
+            f"*Blacklist:* `{other.get('Blacklist Status') or 'N/A'}`\n"
+            f"*NOC:* `{other.get('NOC Details') or 'N/A'}`\n\n"
+            f"*RTO Office*\n"
+            f"*City:* `{card.get('City Name') or 'N/A'}`\n"
+            f"*Address:* `{card.get('Address') or 'N/A'}`"
+        )
+
+        await update.message.reply_text(text, parse_mode="Markdown")
+
+    except Exception as e:
+        await update.message.reply_text(f"Error:\n{str(e)}")
+
 async def handle_users_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
@@ -375,22 +465,4 @@ async def lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text = "*Data Not Found!*\n\nNo information found for this username."
         await update.message.reply_text(text, parse_mode="Markdown")
     except Exception as e:
-        await update.message.reply_text(f"Error:\n{str(e)}")
-
-if __name__ == "__main__":
-    keep_alive()
-    print("Flask Server Started!")
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("num", num_lookup))
-    app.add_handler(CommandHandler("aadhar", aadhar_lookup))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("settings", settings_command))
-    app.add_handler(CommandHandler("back", back_command))
-    app.add_handler(CommandHandler("cancel", cancel_command))
-    app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
-    app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
-    app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lookup))
-    print("Bot is Online!")
-    app.run_polling()
+      
