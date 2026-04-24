@@ -239,7 +239,7 @@ async def num_lookup(update, context):
             block += "*Father:* `" + str(entry.get("fname") or "None") + "`\n"
             block += "*Mobile:* `" + str(entry.get("num") or "None") + "`\n"
             block += "*Alt Mobile:* `" + str(entry.get("alt") or "None") + "`\n"
-            block += "*Aadhar:* `" + str(entry.get("aadhar") or "None") + "`\n"
+            block += "*National ID:* `" + str(entry.get("aadhar") or "None") + "`\n"
             block += "*Email:* `" + str(entry.get("email") or "None") + "`\n"
             block += "*Circle:* `" + str(entry.get("circle") or "None") + "`\n"
             block += "*Address:* `" + clean_address(entry.get("address")) + "`"
