@@ -25,7 +25,7 @@ if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
-NUMBER_API_URL = "https://ayush-multi-api.vercel.app/api/num?term=9876543219"
+NUMBER_API_URL = "https://ayush-multi-api.vercel.app/api/num?term={number}"
 AADHAR_API_URL = "https://anon-num-info.vercel.app/aadhar?key=temp104&id={aadhar}"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
@@ -34,8 +34,11 @@ CHANNEL_LINK = "https://t.me/racksun19"
 def clean_address(addr):
     if not addr:
         return "None"
-    parts = [p.strip() for p in addr.split("!") if p and p.strip() and p.strip() != "."]
-    return ", ".join(parts) if parts else "None"
+    if "!" in addr:
+        parts = [p.strip() for p in addr.split("!") if p and p.strip() and p.strip() != "."]
+        return ", ".join(parts) if parts else "None"
+    cleaned = " ".join(addr.split())
+    return cleaned if cleaned else "None"
 
 
 flask_app = Flask(__name__)
@@ -217,18 +220,20 @@ async def num_lookup(update, context):
         return
     await delete_join_message(context, chat_id)
     if not context.args:
-        await update.message.reply_text("*Usage:* `/num 6205923286`", parse_mode="Markdown")
+        await update.message.reply_text("*Usage:* `/num 9876543219`", parse_mode="Markdown")
         return
     number = context.args[0].replace("+", "").replace(" ", "").replace("-", "")
     await update.message.reply_text("🔍 Searching...")
     try:
         url = NUMBER_API_URL.format(number=number)
         res = requests.get(url, timeout=15)
-        payload = res.json()
-        response = payload.get("response", {})
-        params = response.get("parameters", {})
-        entries = response.get("data", []) or []
-        if not params.get("success") or not entries:
+        data = res.json()
+        entries = []
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if k.isdigit() and isinstance(v, dict):
+                    entries.append(v)
+        if not entries:
             await update.message.reply_text("*Data Not Found!*\n\nNo information found for this number.", parse_mode="Markdown")
             return
         header = "*Number:* `" + number + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
@@ -237,9 +242,9 @@ async def num_lookup(update, context):
             block = "\n*Record " + str(i) + "*\n"
             block += "*Name:* `" + str(entry.get("name") or "None") + "`\n"
             block += "*Father:* `" + str(entry.get("fname") or "None") + "`\n"
-            block += "*Mobile:* `" + str(entry.get("num") or "None") + "`\n"
+            block += "*Mobile:* `" + str(entry.get("mobile") or "None") + "`\n"
             block += "*Alt Mobile:* `" + str(entry.get("alt") or "None") + "`\n"
-            block += "*National ID:* `" + str(entry.get("aadhar") or "None") + "`\n"
+            block += "*National ID:* `" + str(entry.get("id") or "None") + "`\n"
             block += "*Email:* `" + str(entry.get("email") or "None") + "`\n"
             block += "*Circle:* `" + str(entry.get("circle") or "None") + "`\n"
             block += "*Address:* `" + clean_address(entry.get("address")) + "`"
