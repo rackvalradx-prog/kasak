@@ -25,7 +25,7 @@ if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
-NUMBER_API_URL = "https://anon-num-info.vercel.app/num?key=temp094&num={number}"
+NUMBER_API_URL = "https://number-api-vercel.vercel.app/api?number={number}&key=DEVIL-24FC098A-3BD4"
 AADHAR_API_URL = "https://anon-num-info.vercel.app/aadhar?key=temp104&id={aadhar}"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
@@ -217,43 +217,35 @@ async def num_lookup(update, context):
         return
     await delete_join_message(context, chat_id)
     if not context.args:
-        await update.message.reply_text("*Usage:* `/num 6205923286`", parse_mode="Markdown")
+        await update.message.reply_text("*Usage:* `/num 8340617615`", parse_mode="Markdown")
         return
     number = context.args[0].replace("+", "").replace(" ", "").replace("-", "")
     await update.message.reply_text("🔍 Searching...")
     try:
         url = NUMBER_API_URL.format(number=number)
-        res = requests.get(url, timeout=15)
-        payload = res.json()
-        response = payload.get("response", {})
-        params = response.get("parameters", {})
-        entries = response.get("data", []) or []
-        if not params.get("success") or not entries:
-            await update.message.reply_text("*Data Not Found!*\n\nNo information found for this number.", parse_mode="Markdown")
-            return
-        header = "*Number:* `" + number + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
-        blocks = [header]
-        for i, entry in enumerate(entries, 1):
-            block = "\n*Record " + str(i) + "*\n"
-            block += "*Name:* `" + str(entry.get("name") or "None") + "`\n"
-            block += "*Father:* `" + str(entry.get("fname") or "None") + "`\n"
-            block += "*Mobile:* `" + str(entry.get("num") or "None") + "`\n"
-            block += "*Alt Mobile:* `" + str(entry.get("alt") or "None") + "`\n"
-            block += "*National ID:* `" + str(entry.get("aadhar") or "None") + "`\n"
-            block += "*Email:* `" + str(entry.get("email") or "None") + "`\n"
-            block += "*Circle:* `" + str(entry.get("circle") or "None") + "`\n"
-            block += "*Address:* `" + clean_address(entry.get("address")) + "`"
-            blocks.append(block)
-        text = "\n".join(blocks)
-        chunk = ""
-        for line in text.split("\n"):
-            if len(chunk) + len(line) + 1 > 3800:
-                await update.message.reply_text(chunk, parse_mode="Markdown")
-                chunk = line + "\n"
-            else:
-                chunk += line + "\n"
-        if chunk.strip():
-            await update.message.reply_text(chunk, parse_mode="Markdown")
+        res = requests.get(url, timeout=10)
+        data = res.json()
+        if data.get("status") == "found" and data.get("data"):
+            entries = data["data"]
+            lines = []
+            lines.append("*Number:* `" + str(data.get("number")) + "` | *Records:* `" + str(data.get("total")) + "`\n")
+            for i, entry in enumerate(entries, 1):
+                lines.append("*Record " + str(i) + "*")
+                lines.append("*Name:* `" + str(entry.get("name") or "None") + "`")
+                lines.append("*Father:* `" + str(entry.get("father_name") or "None") + "`")
+                lines.append("*Mobile:* `" + str(entry.get("mobile") or "None") + "`")
+                lines.append("*Alt Mobile:* `" + str(entry.get("alt_mobile") or "None") + "`")
+                lines.append("*Email:* `" + str(entry.get("email") or "None") + "`")
+                lines.append("*Address:* `" + str(entry.get("address") or "None") + "`")
+                lines.append("*State:* `" + str(entry.get("state") or "None") + "`")
+                lines.append("*Pincode:* `" + str(entry.get("pincode") or "None") + "`")
+                lines.append("*Circle:* `" + str(entry.get("circle") or "None") + "`")
+                lines.append("*National ID:* `" + str(entry.get("national_id") or "None") + "`")
+                lines.append("")
+            text = "\n".join(lines)
+        else:
+            text = "*Data Not Found!*\n\nNo information found for this number."
+        await update.message.reply_text(text, parse_mode="Markdown")
     except Exception as e:
         await update.message.reply_text("Error:\n" + str(e))
 
