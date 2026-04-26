@@ -41,6 +41,13 @@ def clean_address(addr):
     return cleaned if cleaned else "None"
 
 
+async def delete_searching(context, chat_id, msg_id):
+    try:
+        await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+    except Exception:
+        pass
+
+
 flask_app = Flask(__name__)
 
 @flask_app.route("/")
@@ -223,7 +230,7 @@ async def num_lookup(update, context):
         await update.message.reply_text("*Usage:* `/num 9876543219`", parse_mode="Markdown")
         return
     number = context.args[0].replace("+", "").replace(" ", "").replace("-", "")
-    await update.message.reply_text("🔍 Searching...")
+    searching = await update.message.reply_text("🔍 Searching...")
     try:
         url = NUMBER_API_URL.format(number=number)
         res = requests.get(url, timeout=15)
@@ -234,6 +241,7 @@ async def num_lookup(update, context):
                 if k.isdigit() and isinstance(v, dict):
                     entries.append(v)
         if not entries:
+            await delete_searching(context, chat_id, searching.message_id)
             await update.message.reply_text("*Data Not Found!*\n\nNo information found for this number.", parse_mode="Markdown")
             return
         header = "*Number:* `" + number + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
@@ -250,6 +258,7 @@ async def num_lookup(update, context):
             block += "*Address:* `" + clean_address(entry.get("address")) + "`"
             blocks.append(block)
         text = "\n".join(blocks)
+        await delete_searching(context, chat_id, searching.message_id)
         chunk = ""
         for line in text.split("\n"):
             if len(chunk) + len(line) + 1 > 3800:
@@ -260,6 +269,7 @@ async def num_lookup(update, context):
         if chunk.strip():
             await update.message.reply_text(chunk, parse_mode="Markdown")
     except Exception as e:
+        await delete_searching(context, chat_id, searching.message_id)
         await update.message.reply_text("Error:\n" + str(e))
 
 async def aadhar_lookup(update, context):
@@ -273,7 +283,7 @@ async def aadhar_lookup(update, context):
         await update.message.reply_text("*Usage:* `/aadhar 652507323571`", parse_mode="Markdown")
         return
     aadhar = context.args[0].replace(" ", "").replace("-", "")
-    await update.message.reply_text("🔍 Searching...")
+    searching = await update.message.reply_text("🔍 Searching...")
     try:
         url = AADHAR_API_URL.format(aadhar=aadhar)
         res = requests.get(url, timeout=15)
@@ -284,6 +294,7 @@ async def aadhar_lookup(update, context):
                 if k.isdigit() and isinstance(v, dict):
                     entries.append(v)
         if not entries:
+            await delete_searching(context, chat_id, searching.message_id)
             await update.message.reply_text("*Data Not Found!*\n\nNo information found for this Aadhar.", parse_mode="Markdown")
             return
         header = "*Aadhar:* `" + aadhar + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
@@ -299,6 +310,7 @@ async def aadhar_lookup(update, context):
             block += "*Address:* `" + clean_address(entry.get("address")) + "`"
             blocks.append(block)
         text = "\n".join(blocks)
+        await delete_searching(context, chat_id, searching.message_id)
         chunk = ""
         for line in text.split("\n"):
             if len(chunk) + len(line) + 1 > 3800:
@@ -309,6 +321,7 @@ async def aadhar_lookup(update, context):
         if chunk.strip():
             await update.message.reply_text(chunk, parse_mode="Markdown")
     except Exception as e:
+        await delete_searching(context, chat_id, searching.message_id)
         await update.message.reply_text("Error:\n" + str(e))
 
 async def handle_users_shared(update, context):
@@ -344,7 +357,7 @@ async def lookup(update, context):
     is_number = user_input.lstrip("+").isdigit() and len(user_input.lstrip("+")) >= 7
     if not is_username and not is_number:
         return
-    await update.message.reply_text("🔍 Searching...")
+    searching = await update.message.reply_text("🔍 Searching...")
     try:
         url = BASE_URL + user_input
         res = requests.get(url, timeout=10)
@@ -374,8 +387,10 @@ async def lookup(update, context):
             text = "*Result:*\n`" + str(result) + "`"
         if not_found:
             text = "*Data Not Found!*\n\nNo information found for this username."
+        await delete_searching(context, chat_id, searching.message_id)
         await update.message.reply_text(text, parse_mode="Markdown")
     except Exception as e:
+        await delete_searching(context, chat_id, searching.message_id)
         await update.message.reply_text("Error:\n" + str(e))
 
 if __name__ == "__main__":
