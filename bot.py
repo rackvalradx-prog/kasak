@@ -26,7 +26,7 @@ if not BOT_TOKEN:
 
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
 NUMBER_API_URL = "https://ayush-multi-api.vercel.app/api/num?term={number}"
-AADHAR_API_URL = "https://anon-num-info.vercel.app/aadhar?key=temp104&id={aadhar}"
+AADHAR_API_URL = "https://ayush-multi-api.vercel.app/api/adhar?term={aadhar}"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
 
@@ -200,7 +200,7 @@ async def help_command(update, context):
         "🪪 *Aadhar Lookup*\n"
         "  Use the /aadhar command followed by 12-digit Aadhar.\n\n"
         "  Example:\n"
-        "   • `/aadhar 327567544017`\n\n"
+        "   • `/aadhar 652507323571`\n\n"
         "📋 *Available Commands*\n"
         "  /start    — Start the bot\n"
         "  /num      — Phone number lookup\n"
@@ -270,18 +270,20 @@ async def aadhar_lookup(update, context):
         return
     await delete_join_message(context, chat_id)
     if not context.args:
-        await update.message.reply_text("*Usage:* `/aadhar 327567544017`", parse_mode="Markdown")
+        await update.message.reply_text("*Usage:* `/aadhar 652507323571`", parse_mode="Markdown")
         return
     aadhar = context.args[0].replace(" ", "").replace("-", "")
     await update.message.reply_text("🔍 Searching...")
     try:
         url = AADHAR_API_URL.format(aadhar=aadhar)
         res = requests.get(url, timeout=15)
-        payload = res.json()
-        response = payload.get("response", {})
-        params = response.get("parameters", {})
-        entries = response.get("data", []) or []
-        if not params.get("success") or not entries:
+        data = res.json()
+        entries = []
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if k.isdigit() and isinstance(v, dict):
+                    entries.append(v)
+        if not entries:
             await update.message.reply_text("*Data Not Found!*\n\nNo information found for this Aadhar.", parse_mode="Markdown")
             return
         header = "*Aadhar:* `" + aadhar + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
@@ -290,7 +292,7 @@ async def aadhar_lookup(update, context):
             block = "\n*Record " + str(i) + "*\n"
             block += "*Name:* `" + str(entry.get("name") or "None") + "`\n"
             block += "*Father:* `" + str(entry.get("fname") or "None") + "`\n"
-            block += "*Mobile:* `" + str(entry.get("num") or "None") + "`\n"
+            block += "*Mobile:* `" + str(entry.get("mobile") or "None") + "`\n"
             block += "*Alt Mobile:* `" + str(entry.get("alt") or "None") + "`\n"
             block += "*Email:* `" + str(entry.get("email") or "None") + "`\n"
             block += "*Circle:* `" + str(entry.get("circle") or "None") + "`\n"
