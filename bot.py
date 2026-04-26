@@ -27,8 +27,11 @@ if not BOT_TOKEN:
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
 NUMBER_API_URL = "https://ayush-multi-api.vercel.app/api/num?term={number}"
 AADHAR_API_URL = "https://ayush-multi-api.vercel.app/api/adhar?term={aadhar}"
+VEHICLE_API_URL = "https://ayush-multi-api.vercel.app/api/veh?term={vehicle}"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
+
+FATHER_KEY = "Father" + chr(39) + "s Name"
 
 
 def clean_address(addr):
@@ -173,6 +176,8 @@ async def settings_command(update, context):
         "Use `/num <number>` to fetch available information\n\n"
         "🪪 *Aadhar Lookup*\n"
         "Use `/aadhar <12-digit number>` to fetch info\n\n"
+        "🚗 *Vehicle Lookup*\n"
+        "Use `/veh <reg number>` to fetch vehicle info\n\n"
         "👥 *User / Group / Channel ID*\n"
         "Use the buttons below to get IDs easily\n\n"
         "⚡ *Fast and Automatic*\n"
@@ -208,10 +213,15 @@ async def help_command(update, context):
         "  Use the /aadhar command followed by 12-digit Aadhar.\n\n"
         "  Example:\n"
         "   • `/aadhar 652507323571`\n\n"
+        "🚗 *Vehicle Lookup*\n"
+        "  Use the /veh command followed by registration number.\n\n"
+        "  Example:\n"
+        "   • `/veh UP26R4007`\n\n"
         "📋 *Available Commands*\n"
         "  /start    — Start the bot\n"
         "  /num      — Phone number lookup\n"
         "  /aadhar   — Aadhar lookup\n"
+        "  /veh      — Vehicle lookup\n"
         "  /settings — Show bot features\n"
         "  /back     — Back to main menu\n"
         "  /cancel   — Cancel current action\n"
@@ -324,6 +334,111 @@ async def aadhar_lookup(update, context):
         await delete_searching(context, chat_id, searching.message_id)
         await update.message.reply_text("Error:\n" + str(e))
 
+async def vehicle_lookup(update, context):
+    user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
+    if not context.args:
+        await update.message.reply_text("*Usage:* `/veh UP26R4007`", parse_mode="Markdown")
+        return
+    vehicle = context.args[0].replace(" ", "").replace("-", "").upper()
+    searching = await update.message.reply_text("🔍 Searching...")
+    try:
+        url = VEHICLE_API_URL.format(vehicle=vehicle)
+        res = requests.get(url, timeout=15)
+        data = res.json()
+        if not data or "Ownership Details" not in data:
+            await delete_searching(context, chat_id, searching.message_id)
+            await update.message.reply_text("*Data Not Found!*\n\nNo information found for this vehicle.", parse_mode="Markdown")
+            return
+        own = data.get("Ownership Details", {}) or {}
+        veh = data.get("Vehicle Details", {}) or {}
+        ins = data.get("Insurance Information", {}) or {}
+        dates = data.get("Important Dates & Validity", {}) or {}
+        other = data.get("Other Information", {}) or {}
+        card = data.get("Basic Card Info", {}) or {}
+        ins_alert = data.get("Insurance Alert", {}) or {}
+        expired_days = ins_alert.get("Expired Days")
+        ins_status = dates.get("Insurance Expiry In") or "N/A"
+        if expired_days and "expired" in ins_status.lower():
+            ins_status = "Expired (" + str(expired_days) + " days ago)"
+        father_name = own.get(FATHER_KEY) or "N/A"
+        owner_name = own.get("Owner Name") or "N/A"
+        owner_serial = own.get("Owner Serial No") or "N/A"
+        rto_name = own.get("Registered RTO") or "N/A"
+        rto_code = card.get("Code") or "N/A"
+        reg_no = data.get("registration_number") or vehicle
+        maker = veh.get("Model Name") or "N/A"
+        model = veh.get("Maker Model") or "N/A"
+        v_class = veh.get("Vehicle Class") or "N/A"
+        fuel = veh.get("Fuel Type") or "N/A"
+        norms = veh.get("Fuel Norms") or "N/A"
+        chassis = veh.get("Chassis Number") or "N/A"
+        engine = veh.get("Engine Number") or "N/A"
+        cc = other.get("Cubic Capacity") or "N/A"
+        seating = other.get("Seating Capacity") or "N/A"
+        ins_company = ins.get("Insurance Company") or "N/A"
+        ins_no = ins.get("Insurance No") or "N/A"
+        ins_expiry = ins.get("Insurance Expiry") or "N/A"
+        reg_date = dates.get("Registration Date") or "N/A"
+        v_age = dates.get("Vehicle Age") or "N/A"
+        fitness = dates.get("Fitness Upto") or "N/A"
+        tax = dates.get("Tax Upto") or "N/A"
+        puc_no = dates.get("PUC No") or "N/A"
+        puc_upto = dates.get("PUC Upto") or "N/A"
+        puc_status = dates.get("PUC Expiry In") or "N/A"
+        financer = other.get("Financer Name") or "N/A"
+        permit = other.get("Permit Type") or "N/A"
+        blacklist = other.get("Blacklist Status") or "N/A"
+        noc = other.get("NOC Details") or "N/A"
+        city = card.get("City Name") or "N/A"
+        address = card.get("Address") or "N/A"
+        text = "🚗 *Vehicle:* `" + str(reg_no) + "`\n\n"
+        text += "👤 *Owner Details*\n"
+        text += "*Name:* `" + str(owner_name) + "`\n"
+        text += "*Father:* `" + str(father_name) + "`\n"
+        text += "*Owner Serial:* `" + str(owner_serial) + "`\n"
+        text += "*RTO:* `" + str(rto_name) + " (" + str(rto_code) + ")`\n\n"
+        text += "🚘 *Vehicle Info*\n"
+        text += "*Maker:* `" + str(maker) + "`\n"
+        text += "*Model:* `" + str(model) + "`\n"
+        text += "*Class:* `" + str(v_class) + "`\n"
+        text += "*Fuel:* `" + str(fuel) + "`\n"
+        text += "*Fuel Norms:* `" + str(norms) + "`\n"
+        text += "*Chassis:* `" + str(chassis) + "`\n"
+        text += "*Engine:* `" + str(engine) + "`\n"
+        text += "*Cubic Capacity:* `" + str(cc) + "`\n"
+        text += "*Seating:* `" + str(seating) + "`\n\n"
+        text += "🛡 *Insurance*\n"
+        text += "*Company:* `" + str(ins_company) + "`\n"
+        text += "*Policy No:* `" + str(ins_no) + "`\n"
+        text += "*Expiry:* `" + str(ins_expiry) + "`\n"
+        text += "*Status:* `" + str(ins_status) + "`\n\n"
+        text += "📅 *Validity & Dates*\n"
+        text += "*Registration Date:* `" + str(reg_date) + "`\n"
+        text += "*Vehicle Age:* `" + str(v_age) + "`\n"
+        text += "*Fitness Upto:* `" + str(fitness) + "`\n"
+        text += "*Tax Upto:* `" + str(tax) + "`\n"
+        text += "*PUC No:* `" + str(puc_no) + "`\n"
+        text += "*PUC Upto:* `" + str(puc_upto) + "`\n"
+        text += "*PUC Status:* `" + str(puc_status) + "`\n\n"
+        text += "ℹ️ *Other*\n"
+        text += "*Financer:* `" + str(financer) + "`\n"
+        text += "*Permit Type:* `" + str(permit) + "`\n"
+        text += "*Blacklist:* `" + str(blacklist) + "`\n"
+        text += "*NOC:* `" + str(noc) + "`\n\n"
+        text += "🏢 *RTO Office*\n"
+        text += "*City:* `" + str(city) + "`\n"
+        text += "*Address:* `" + str(address) + "`"
+        await delete_searching(context, chat_id, searching.message_id)
+        await update.message.reply_text(text, parse_mode="Markdown")
+    except Exception as e:
+        await delete_searching(context, chat_id, searching.message_id)
+        await update.message.reply_text("Error:\n" + str(e))
+
 async def handle_users_shared(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
@@ -338,75 +453,4 @@ async def handle_users_shared(update, context):
 async def handle_chat_shared(update, context):
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
-    if not await is_member(user_id, context):
-        await send_join_message(update, context)
-        return
-    await delete_join_message(context, chat_id)
-    if update.message.chat_shared:
-        await update.message.reply_text("*Chat ID:* `" + str(update.message.chat_shared.chat_id) + "`", parse_mode="Markdown")
-
-async def lookup(update, context):
-    user_id = update.message.from_user.id
-    chat_id = update.message.chat_id
-    if not await is_member(user_id, context):
-        await send_join_message(update, context)
-        return
-    await delete_join_message(context, chat_id)
-    user_input = update.message.text.strip()
-    is_username = user_input.startswith("@") and len(user_input) > 1
-    is_number = user_input.lstrip("+").isdigit() and len(user_input.lstrip("+")) >= 7
-    if not is_username and not is_number:
-        return
-    searching = await update.message.reply_text("🔍 Searching...")
-    try:
-        url = BASE_URL + user_input
-        res = requests.get(url, timeout=10)
-        data = res.json()
-        if "result" in data:
-            result = data["result"]
-        else:
-            result = data
-        not_found = False
-        text = ""
-        if isinstance(result, dict):
-            if not result.get("success", True):
-                not_found = True
-            else:
-                fields = {k: v for k, v in result.items() if k not in ("success", "msg")}
-                if not fields:
-                    not_found = True
-                else:
-                    lines = ["*Result:*\n"]
-                    for key, value in fields.items():
-                        label = key.replace("_", " ").title()
-                        lines.append("*" + label + ":* `" + str(value) + "`")
-                    text = "\n".join(lines)
-        elif not result:
-            not_found = True
-        else:
-            text = "*Result:*\n`" + str(result) + "`"
-        if not_found:
-            text = "*Data Not Found!*\n\nNo information found for this username."
-        await delete_searching(context, chat_id, searching.message_id)
-        await update.message.reply_text(text, parse_mode="Markdown")
-    except Exception as e:
-        await delete_searching(context, chat_id, searching.message_id)
-        await update.message.reply_text("Error:\n" + str(e))
-
-if __name__ == "__main__":
-    keep_alive()
-    print("Flask Server Started!")
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("num", num_lookup))
-    app.add_handler(CommandHandler("aadhar", aadhar_lookup))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("settings", settings_command))
-    app.add_handler(CommandHandler("back", back_command))
-    app.add_handler(CommandHandler("cancel", cancel_command))
-    app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
-    app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
-    app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lookup))
-    print("Bot is Online!")
-    app.run_polling()
+    if not await is_member(us
