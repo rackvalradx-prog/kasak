@@ -1,4 +1,5 @@
 import os
+import asyncio
 import requests
 from flask import Flask
 from threading import Thread
@@ -11,6 +12,7 @@ from telegram import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
+from telegram.error import Forbidden, BadRequest, RetryAfter
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -294,6 +296,74 @@ async def stats_command(update, context):
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
+async def broadcast_command(update, context):
+    user_id = update.message.from_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+    reply_msg = update.message.reply_to_message
+    text_after = update.message.text.partition(" ")[2].strip()
+    if not reply_msg and not text_after:
+        usage = (
+            "*Usage:*\n"
+            "1. `/broadcast <your message>` — text broadcast\n"
+            "2. Reply to any message with `/broadcast` — copies that message to all users"
+        )
+        await update.message.reply_text(usage, parse_mode="Markdown")
+        return
+    total = len(known_users)
+    if total == 0:
+        await update.message.reply_text("No users to broadcast to yet.")
+        return
+    status = await update.message.reply_text("Broadcasting to " + str(total) + " users...")
+    sent = 0
+    failed = 0
+    blocked = 0
+    for uid in list(known_users):
+        try:
+            if reply_msg:
+                await context.bot.copy_message(
+                    chat_id=uid,
+                    from_chat_id=update.message.chat_id,
+                    message_id=reply_msg.message_id,
+                )
+            else:
+                await context.bot.send_message(chat_id=uid, text=text_after)
+            sent = sent + 1
+        except Forbidden:
+            blocked = blocked + 1
+        except BadRequest:
+            failed = failed + 1
+        except RetryAfter as e:
+            await asyncio.sleep(e.retry_after + 1)
+            try:
+                if reply_msg:
+                    await context.bot.copy_message(
+                        chat_id=uid,
+                        from_chat_id=update.message.chat_id,
+                        message_id=reply_msg.message_id,
+                    )
+                else:
+                    await context.bot.send_message(chat_id=uid, text=text_after)
+                sent = sent + 1
+            except Exception:
+                failed = failed + 1
+        except Exception:
+            failed = failed + 1
+        await asyncio.sleep(0.05)
+    report = (
+        "*Broadcast Complete*\n\n"
+        "*Total:* `" + str(total) + "`\n"
+        "*Sent:* `" + str(sent) + "`\n"
+        "*Blocked:* `" + str(blocked) + "`\n"
+        "*Failed:* `" + str(failed) + "`"
+    )
+    try:
+        await status.edit_text(report, parse_mode="Markdown")
+    except Exception:
+        await update.message.reply_text(report, parse_mode="Markdown")
+
+
 async def num_lookup(update, context):
     user_id = update.message.from_user.id
     track_user(user_id)
@@ -474,38 +544,4 @@ async def lookup(update, context):
                     lines = ["*Result:*\n"]
                     for key in fields:
                         value = fields[key]
-                        label = key.replace("_", " ").title()
-                        lines.append("*" + label + ":* `" + str(value) + "`")
-                    text = "\n".join(lines)
-        elif not result:
-            not_found = True
-        else:
-            text = "*Result:*\n`" + str(result) + "`"
-        if not_found:
-            text = "*Data Not Found!*\n\nNo information found for this username."
-        await delete_searching(context, chat_id, searching.message_id)
-        await update.message.reply_text(text, parse_mode="Markdown")
-    except Exception as e:
-        await delete_searching(context, chat_id, searching.message_id)
-        await update.message.reply_text("Error:\n" + str(e))
-
-
-if __name__ == "__main__":
-    load_users()
-    keep_alive()
-    print("Flask Server Started!")
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("num", num_lookup))
-    app.add_handler(CommandHandler("aadhar", aadhar_lookup))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("settings", settings_command))
-    app.add_handler(CommandHandler("back", back_command))
-    app.add_handler(CommandHandler("cancel", cancel_command))
-    app.add_handler(CommandHandler("stats", stats_command))
-    app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
-    app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
-    app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lookup))
-    print("Bot is Online!")
-    app.run_polling()
+                       
