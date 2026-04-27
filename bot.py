@@ -1,4 +1,5 @@
 import os
+import asyncio
 import requests
 from flask import Flask
 from threading import Thread
@@ -11,6 +12,7 @@ from telegram import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
+from telegram.error import Forbidden, BadRequest, RetryAfter
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -24,11 +26,36 @@ BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
+ADMIN_ID = 8300271033  # <-- Teri Telegram user ID
+
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
 NUMBER_API_URL = "https://ayush-multi-api.vercel.app/api/num?term={number}"
 AADHAR_API_URL = "https://ayush-multi-api.vercel.app/api/adhar?term={aadhar}"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
+
+# ===== USER TRACKING =====
+USERS_FILE = "users.txt"
+known_users = set()
+
+def load_users():
+    global known_users
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.isdigit():
+                    known_users.add(int(line))
+    print(f"Loaded {len(known_users)} users from {USERS_FILE}")
+
+def track_user(user_id: int):
+    if user_id and user_id not in known_users:
+        known_users.add(user_id)
+        try:
+            with open(USERS_FILE, "a") as f:
+                f.write(str(user_id) + "\n")
+        except Exception as e:
+            print("track_user error:", e)
 
 
 def clean_address(addr):
@@ -98,6 +125,7 @@ async def delete_join_message(context, chat_id):
 async def check_joined_callback(update, context):
     query = update.callback_query
     user_id = query.from_user.id
+    track_user(user_id)
     if await is_member(user_id, context):
         await query.message.delete()
         context.user_data.pop("join_msg_id", None)
@@ -130,6 +158,7 @@ async def show_main_menu(update, context, header=None):
 
 async def start(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -140,6 +169,7 @@ async def start(update, context):
 
 async def back_command(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -149,6 +179,7 @@ async def back_command(update, context):
 
 async def cancel_command(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -159,6 +190,7 @@ async def cancel_command(update, context):
 
 async def settings_command(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -186,6 +218,7 @@ async def settings_command(update, context):
 
 async def help_command(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -219,8 +252,113 @@ async def help_command(update, context):
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
+# ===== ADMIN COMMANDS =====
+async def broadcast_command(update, context):
+    user_id = update.message.from_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("❌ *You are not authorized to use this command.*", parse_mode="Markdown")
+        return
+
+    reply_msg = update.message.reply_to_message
+    text_after = update.message.text.partition(" ")[2].strip()
+
+    if not reply_msg and not text_after:
+        await update.message.reply_text(
+            "*Usage:*\n"
+            "1. `/broadcast <your message>` — text broadcast\n"
+            "2. Reply to any message (text/photo/video/etc) with `/broadcast` — copies that message to all users",
+            parse_mode="Markdown"
+        )
+        return
+
+    total = len(known_users)
+    if total == 0:
+        await update.message.reply_text("No users to broadcast to yet.")
+        return
+
+    status = await update.message.reply_text(f"📣 Broadcasting to {total} users...")
+
+    sent = 0
+    failed = 0
+    blocked = 0
+
+    for uid in list(known_users):
+        try:
+            if reply_msg:
+                await context.bot.copy_message(
+                    chat_id=uid,
+                    from_chat_id=update.message.chat_id,
+                    message_id=reply_msg.message_id,
+                )
+            else:
+                await context.bot.send_message(chat_id=uid, text=text_after)
+            sent += 1
+        except Forbidden:
+            blocked += 1
+        except BadRequest:
+            failed += 1
+        except RetryAfter as e:
+            await asyncio.sleep(e.retry_after + 1)
+            try:
+                if reply_msg:
+                    await context.bot.copy_message(
+                        chat_id=uid,
+                        from_chat_id=update.message.chat_id,
+                        message_id=reply_msg.message_id,
+                    )
+                else:
+                    await context.bot.send_message(chat_id=uid, text=text_after)
+                sent += 1
+            except Exception:
+                failed += 1
+        except Exception:
+            failed += 1
+
+        await asyncio.sleep(0.05)
+
+    report = (
+        "✅ *Broadcast Complete*\n\n"
+        f"*Total:* `{total}`\n"
+        f"*Sent:* `{sent}`\n"
+        f"*Blocked:* `{blocked}`\n"
+        f"*Failed:* `{failed}`"
+    )
+    try:
+        await status.edit_text(report, parse_mode="Markdown")
+    except Exception:
+        await update.message.reply_text(report, parse_mode="Markdown")
+
+async def stats_command(update, context):
+    user_id = update.message.from_user.id
+    if user_id != ADMIN_ID:
+        return
+    await update.message.reply_text(
+        f"📊 *Bot Stats*\n\n*Total Users:* `{len(known_users)}`",
+        parse_mode="Markdown"
+    )
+
+async def users_command(update, context):
+    user_id = update.message.from_user.id
+    if user_id != ADMIN_ID:
+        return
+    if not os.path.exists(USERS_FILE) or len(known_users) == 0:
+        await update.message.reply_text("No users saved yet.")
+        return
+    try:
+        with open(USERS_FILE, "rb") as f:
+            await context.bot.send_document(
+                chat_id=update.message.chat_id,
+                document=f,
+                filename="users.txt",
+                caption=f"📂 *Users Backup*\n\n*Total Users:* `{len(known_users)}`",
+                parse_mode="Markdown",
+            )
+    except Exception as e:
+        await update.message.reply_text("Error sending file:\n" + str(e))
+
 async def num_lookup(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -274,6 +412,7 @@ async def num_lookup(update, context):
 
 async def aadhar_lookup(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -326,6 +465,7 @@ async def aadhar_lookup(update, context):
 
 async def handle_users_shared(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -337,6 +477,7 @@ async def handle_users_shared(update, context):
 
 async def handle_chat_shared(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -347,6 +488,7 @@ async def handle_chat_shared(update, context):
 
 async def lookup(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -372,41 +514,4 @@ async def lookup(update, context):
             if not result.get("success", True):
                 not_found = True
             else:
-                fields = {k: v for k, v in result.items() if k not in ("success", "msg")}
-                if not fields:
-                    not_found = True
-                else:
-                    lines = ["*Result:*\n"]
-                    for key, value in fields.items():
-                        label = key.replace("_", " ").title()
-                        lines.append("*" + label + ":* `" + str(value) + "`")
-                    text = "\n".join(lines)
-        elif not result:
-            not_found = True
-        else:
-            text = "*Result:*\n`" + str(result) + "`"
-        if not_found:
-            text = "*Data Not Found!*\n\nNo information found for this username."
-        await delete_searching(context, chat_id, searching.message_id)
-        await update.message.reply_text(text, parse_mode="Markdown")
-    except Exception as e:
-        await delete_searching(context, chat_id, searching.message_id)
-        await update.message.reply_text("Error:\n" + str(e))
-
-if __name__ == "__main__":
-    keep_alive()
-    print("Flask Server Started!")
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("num", num_lookup))
-    app.add_handler(CommandHandler("aadhar", aadhar_lookup))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("settings", settings_command))
-    app.add_handler(CommandHandler("back", back_command))
-    app.add_handler(CommandHandler("cancel", cancel_command))
-    app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
-    app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
-    app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lookup))
-    print("Bot is Online!")
-    app.run_polling()
+                fields = {k: v for k, v
