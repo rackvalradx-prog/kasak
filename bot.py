@@ -24,11 +24,37 @@ BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
+ADMIN_ID = 8300271033
+
 BASE_URL = "https://api.subhxcosmo.in/api?key=RACKSUN&type=tg&term="
 NUMBER_API_URL = "https://ayush-multi-api.vercel.app/api/num?term={number}"
 AADHAR_API_URL = "https://ayush-multi-api.vercel.app/api/adhar?term={aadhar}"
 CHANNEL_USERNAME = "@racksun19"
 CHANNEL_LINK = "https://t.me/racksun19"
+
+USERS_FILE = "users.txt"
+known_users = set()
+
+
+def load_users():
+    global known_users
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.isdigit():
+                    known_users.add(int(line))
+    print("Loaded " + str(len(known_users)) + " users from " + USERS_FILE)
+
+
+def track_user(user_id):
+    if user_id and user_id not in known_users:
+        known_users.add(user_id)
+        try:
+            with open(USERS_FILE, "a") as f:
+                f.write(str(user_id) + "\n")
+        except Exception as e:
+            print("track_user error:", e)
 
 
 def clean_address(addr):
@@ -117,6 +143,7 @@ async def delete_join_message(context, chat_id):
 async def check_joined_callback(update, context):
     query = update.callback_query
     user_id = query.from_user.id
+    track_user(user_id)
     if await is_member(user_id, context):
         await query.message.delete()
         context.user_data.pop("join_msg_id", None)
@@ -160,6 +187,7 @@ async def show_main_menu(update, context, header=None):
 
 async def start(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -171,6 +199,7 @@ async def start(update, context):
 
 async def back_command(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -181,6 +210,7 @@ async def back_command(update, context):
 
 async def cancel_command(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -192,6 +222,7 @@ async def cancel_command(update, context):
 
 async def settings_command(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -220,6 +251,7 @@ async def settings_command(update, context):
 
 async def help_command(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -254,8 +286,17 @@ async def help_command(update, context):
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
 
+async def stats_command(update, context):
+    user_id = update.message.from_user.id
+    if user_id != ADMIN_ID:
+        return
+    msg = "*Bot Stats*\n\n*Total Users:* `" + str(len(known_users)) + "`"
+    await update.message.reply_text(msg, parse_mode="Markdown")
+
+
 async def num_lookup(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -313,6 +354,7 @@ async def num_lookup(update, context):
 
 async def aadhar_lookup(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -369,6 +411,7 @@ async def aadhar_lookup(update, context):
 
 async def handle_users_shared(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -381,6 +424,7 @@ async def handle_users_shared(update, context):
 
 async def handle_chat_shared(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -392,6 +436,7 @@ async def handle_chat_shared(update, context):
 
 async def lookup(update, context):
     user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
     if not await is_member(user_id, context):
         await send_join_message(update, context)
@@ -446,6 +491,7 @@ async def lookup(update, context):
 
 
 if __name__ == "__main__":
+    load_users()
     keep_alive()
     print("Flask Server Started!")
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -456,6 +502,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("settings", settings_command))
     app.add_handler(CommandHandler("back", back_command))
     app.add_handler(CommandHandler("cancel", cancel_command))
+    app.add_handler(CommandHandler("stats", stats_command))
     app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
     app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
     app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
