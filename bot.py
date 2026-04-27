@@ -1,5 +1,4 @@
 import os
-import asyncio
 import requests
 from flask import Flask
 from threading import Thread
@@ -39,25 +38,23 @@ known_users = set()
 
 def load_users():
     global known_users
-    if not os.path.exists(USERS_FILE):
-        return
-    f = open(USERS_FILE, "r")
-    for line in f:
-        line = line.strip()
-        if line.isdigit():
-            known_users.add(int(line))
-    f.close()
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.isdigit():
+                    known_users.add(int(line))
+    print("Loaded " + str(len(known_users)) + " users from " + USERS_FILE)
 
 
 def track_user(user_id):
-    if not user_id:
-        return
-    if user_id in known_users:
-        return
-    known_users.add(user_id)
-    f = open(USERS_FILE, "a")
-    f.write(str(user_id) + "\n")
-    f.close()
+    if user_id and user_id not in known_users:
+        known_users.add(user_id)
+        try:
+            with open(USERS_FILE, "a") as f:
+                f.write(str(user_id) + "\n")
+        except Exception as e:
+            print("track_user error:", e)
 
 
 def clean_address(addr):
@@ -78,7 +75,7 @@ def clean_address(addr):
     return "None"
 
 
-async def safe_delete(context, chat_id, msg_id):
+async def delete_searching(context, chat_id, msg_id):
     try:
         await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
     except Exception:
@@ -107,15 +104,15 @@ def keep_alive():
 async def is_member(user_id, context):
     try:
         member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        if member.status == "member":
+            return True
+        if member.status == "administrator":
+            return True
+        if member.status == "creator":
+            return True
+        return False
     except Exception:
         return False
-    if member.status == "member":
-        return True
-    if member.status == "administrator":
-        return True
-    if member.status == "creator":
-        return True
-    return False
 
 
 async def send_join_message(update, context):
@@ -131,30 +128,31 @@ async def send_join_message(update, context):
 
 async def delete_join_message(context, chat_id):
     msg_id = context.user_data.get("join_msg_id")
-    if not msg_id:
-        return
-    await safe_delete(context, chat_id, msg_id)
-    context.user_data.pop("join_msg_id", None)
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text="You have successfully joined our channel!\n\nYou can now use the bot freely. Send /start to begin.",
-    )
+    if msg_id:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception:
+            pass
+        context.user_data.pop("join_msg_id", None)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="You have successfully joined our channel!\n\nYou can now use the bot freely. Send /start to begin."
+        )
 
 
 async def check_joined_callback(update, context):
     query = update.callback_query
     user_id = query.from_user.id
     track_user(user_id)
-    member_ok = await is_member(user_id, context)
-    if not member_ok:
+    if await is_member(user_id, context):
+        await query.message.delete()
+        context.user_data.pop("join_msg_id", None)
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="You have successfully joined our channel!\n\nYou can now use the bot freely. Send /start to begin."
+        )
+    else:
         await query.answer("You have not joined yet! Please join first.", show_alert=True)
-        return
-    await safe_delete(context, query.message.chat_id, query.message.message_id)
-    context.user_data.pop("join_msg_id", None)
-    await context.bot.send_message(
-        chat_id=query.message.chat_id,
-        text="You have successfully joined our channel!\n\nYou can now use the bot freely. Send /start to begin.",
-    )
 
 
 def main_menu_markup():
@@ -187,69 +185,103 @@ async def show_main_menu(update, context, header=None):
     await update.message.reply_text(welcome_msg, reply_markup=main_menu_markup(), parse_mode="Markdown")
 
 
-async def gate(update, context):
+async def start(update, context):
     user_id = update.message.from_user.id
     track_user(user_id)
     chat_id = update.message.chat_id
-    member_ok = await is_member(user_id, context)
-    if not member_ok:
+    if not await is_member(user_id, context):
         await send_join_message(update, context)
-        return False
-    await delete_join_message(context, chat_id)
-    return True
-
-
-async def start(update, context):
-    ok = await gate(update, context)
-    if not ok:
         return
+    await delete_join_message(context, chat_id)
     context.user_data.clear()
     await show_main_menu(update, context)
 
 
 async def back_command(update, context):
-    ok = await gate(update, context)
-    if not ok:
+    user_id = update.message.from_user.id
+    track_user(user_id)
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
         return
+    await delete_join_message(context, chat_id)
     await show_main_menu(update, context, header="Back to main menu.")
 
 
 async def cancel_command(update, context):
-    ok = await gate(update, context)
-    if not ok:
+    user_id = update.message.from_user.id
+    track_user(user_id)
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
         return
+    await delete_join_message(context, chat_id)
     context.user_data.clear()
     await show_main_menu(update, context, header="Cancelled.")
 
 
 async def settings_command(update, context):
-    ok = await gate(update, context)
-    if not ok:
+    user_id = update.message.from_user.id
+    track_user(user_id)
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
         return
+    await delete_join_message(context, chat_id)
     settings_text = (
         "*Settings*\n\n"
-        "*Username / UID Lookup* — Send any @username or numeric ID\n\n"
-        "*Phone Number Lookup* — `/num <number>`\n\n"
-        "*Aadhar Lookup* — `/aadhar <12-digit number>`\n\n"
-        "*User / Group / Channel ID* — Use the buttons below\n\n"
-        "*Help Guide* — Use /help to see full instructions\n\n"
+        "*What this bot can do:*\n\n"
+        "*Username / UID Lookup*\n"
+        "Send any @username or numeric ID to get details instantly\n\n"
+        "*Phone Number Lookup*\n"
+        "Use `/num <number>` to fetch available information\n\n"
+        "*Aadhar Lookup*\n"
+        "Use `/aadhar <12-digit number>` to fetch info\n\n"
+        "*User / Group / Channel ID*\n"
+        "Use the buttons below to get IDs easily\n\n"
+        "*Fast and Automatic*\n"
+        "No extra commands needed for basic lookups\n\n"
+        "*Help Guide*\n"
+        "Use /help to see full instructions\n\n"
+        "—\n\n"
         "_Thanks for using this bot._"
     )
     await update.message.reply_text(settings_text, parse_mode="Markdown")
 
 
 async def help_command(update, context):
-    ok = await gate(update, context)
-    if not ok:
+    user_id = update.message.from_user.id
+    track_user(user_id)
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
         return
+    await delete_join_message(context, chat_id)
     help_text = (
         "*Welcome to @racksunbot Help*\n\n"
-        "*Username / UID Lookup* — Send the username or UID directly.\n"
-        "Examples: `@username` or `1234567890`\n\n"
-        "*Phone Number Lookup* — `/num 9876543210`\n\n"
-        "*Aadhar Lookup* — `/aadhar 652507323571`\n\n"
+        "Here is how to use this bot:\n\n"
+        "*Telegram Username / UID Lookup*\n"
+        "  Just send the username or UID directly in chat.\n"
+        "  No command needed.\n\n"
+        "  Examples:\n"
+        "   `@username`\n"
+        "   `1234567890`\n\n"
+        "*Phone Number Lookup*\n"
+        "  Use the /num command followed by the number.\n\n"
+        "  Example:\n"
+        "   `/num 9876543210`\n\n"
+        "*Aadhar Lookup*\n"
+        "  Use the /aadhar command followed by 12-digit Aadhar.\n\n"
+        "  Example:\n"
+        "   `/aadhar 652507323571`\n\n"
         "*Available Commands*\n"
-        "/start /num /aadhar /settings /back /cancel /help"
+        "  /start    — Start the bot\n"
+        "  /num      — Phone number lookup\n"
+        "  /aadhar   — Aadhar lookup\n"
+        "  /settings — Show bot features\n"
+        "  /back     — Back to main menu\n"
+        "  /cancel   — Cancel current action\n"
+        "  /help     — Show this help message"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
@@ -262,181 +294,154 @@ async def stats_command(update, context):
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
-async def send_one_user(context, uid, reply_msg, text_after, from_chat_id):
-    try:
-        if reply_msg:
-            await context.bot.copy_message(
-                chat_id=uid,
-                from_chat_id=from_chat_id,
-                message_id=reply_msg.message_id,
-            )
-        else:
-            await context.bot.send_message(chat_id=uid, text=text_after)
-        return True
-    except Exception:
-        return False
-
-
-async def broadcast_command(update, context):
-    user_id = update.message.from_user.id
-    if user_id != ADMIN_ID:
-        await update.message.reply_text("Not authorized.")
-        return
-    reply_msg = update.message.reply_to_message
-    text_after = update.message.text.partition(" ")[2].strip()
-    if not reply_msg and not text_after:
-        await update.message.reply_text("Usage: /broadcast <message>  or reply to any message with /broadcast")
-        return
-    total = len(known_users)
-    if total == 0:
-        await update.message.reply_text("No users to broadcast to yet.")
-        return
-    status = await update.message.reply_text("Broadcasting to " + str(total) + " users...")
-    sent = 0
-    failed = 0
-    from_chat_id = update.message.chat_id
-    for uid in list(known_users):
-        ok = await send_one_user(context, uid, reply_msg, text_after, from_chat_id)
-        if ok:
-            sent = sent + 1
-        else:
-            failed = failed + 1
-        await asyncio.sleep(0.05)
-    report = "Broadcast Complete\nTotal: " + str(total) + "\nSent: " + str(sent) + "\nFailed: " + str(failed)
-    await update.message.reply_text(report)
-
-
-async def send_long(update, text):
-    chunk = ""
-    for line in text.split("\n"):
-        if len(chunk) + len(line) + 1 > 3800:
-            await update.message.reply_text(chunk, parse_mode="Markdown")
-            chunk = line + "\n"
-        else:
-            chunk = chunk + line + "\n"
-    if chunk.strip():
-        await update.message.reply_text(chunk, parse_mode="Markdown")
-
-
 async def num_lookup(update, context):
-    ok = await gate(update, context)
-    if not ok:
-        return
+    user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
     if not context.args:
         await update.message.reply_text("*Usage:* `/num 9876543219`", parse_mode="Markdown")
         return
     number = context.args[0].replace("+", "").replace(" ", "").replace("-", "")
     searching = await update.message.reply_text("Searching...")
-    url = NUMBER_API_URL.format(number=number)
     try:
+        url = NUMBER_API_URL.format(number=number)
         res = requests.get(url, timeout=15)
         data = res.json()
+        entries = []
+        if isinstance(data, dict):
+            for k in data:
+                v = data[k]
+                if k.isdigit() and isinstance(v, dict):
+                    entries.append(v)
+        if not entries:
+            await delete_searching(context, chat_id, searching.message_id)
+            await update.message.reply_text("*Data Not Found!*\n\nNo information found for this number.", parse_mode="Markdown")
+            return
+        header = "*Number:* `" + number + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
+        blocks = [header]
+        i = 0
+        for entry in entries:
+            i = i + 1
+            block = "\n*Record " + str(i) + "*\n"
+            block = block + "*Name:* `" + str(entry.get("name") or "None") + "`\n"
+            block = block + "*Father:* `" + str(entry.get("fname") or "None") + "`\n"
+            block = block + "*Mobile:* `" + str(entry.get("mobile") or "None") + "`\n"
+            block = block + "*Alt Mobile:* `" + str(entry.get("alt") or "None") + "`\n"
+            block = block + "*National ID:* `" + str(entry.get("id") or "None") + "`\n"
+            block = block + "*Email:* `" + str(entry.get("email") or "None") + "`\n"
+            block = block + "*Circle:* `" + str(entry.get("circle") or "None") + "`\n"
+            block = block + "*Address:* `" + clean_address(entry.get("address")) + "`"
+            blocks.append(block)
+        text = "\n".join(blocks)
+        await delete_searching(context, chat_id, searching.message_id)
+        chunk = ""
+        for line in text.split("\n"):
+            if len(chunk) + len(line) + 1 > 3800:
+                await update.message.reply_text(chunk, parse_mode="Markdown")
+                chunk = line + "\n"
+            else:
+                chunk = chunk + line + "\n"
+        if chunk.strip():
+            await update.message.reply_text(chunk, parse_mode="Markdown")
     except Exception as e:
-        await safe_delete(context, chat_id, searching.message_id)
+        await delete_searching(context, chat_id, searching.message_id)
         await update.message.reply_text("Error:\n" + str(e))
-        return
-    entries = []
-    if isinstance(data, dict):
-        for k in data:
-            v = data[k]
-            if k.isdigit() and isinstance(v, dict):
-                entries.append(v)
-    if not entries:
-        await safe_delete(context, chat_id, searching.message_id)
-        await update.message.reply_text("*Data Not Found!*\n\nNo information found for this number.", parse_mode="Markdown")
-        return
-    header = "*Number:* `" + number + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
-    blocks = [header]
-    i = 0
-    for entry in entries:
-        i = i + 1
-        block = "\n*Record " + str(i) + "*\n"
-        block = block + "*Name:* `" + str(entry.get("name") or "None") + "`\n"
-        block = block + "*Father:* `" + str(entry.get("fname") or "None") + "`\n"
-        block = block + "*Mobile:* `" + str(entry.get("mobile") or "None") + "`\n"
-        block = block + "*Alt Mobile:* `" + str(entry.get("alt") or "None") + "`\n"
-        block = block + "*National ID:* `" + str(entry.get("id") or "None") + "`\n"
-        block = block + "*Email:* `" + str(entry.get("email") or "None") + "`\n"
-        block = block + "*Circle:* `" + str(entry.get("circle") or "None") + "`\n"
-        block = block + "*Address:* `" + clean_address(entry.get("address")) + "`"
-        blocks.append(block)
-    text = "\n".join(blocks)
-    await safe_delete(context, chat_id, searching.message_id)
-    await send_long(update, text)
 
 
 async def aadhar_lookup(update, context):
-    ok = await gate(update, context)
-    if not ok:
-        return
+    user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
     if not context.args:
         await update.message.reply_text("*Usage:* `/aadhar 652507323571`", parse_mode="Markdown")
         return
     aadhar = context.args[0].replace(" ", "").replace("-", "")
     searching = await update.message.reply_text("Searching...")
-    url = AADHAR_API_URL.format(aadhar=aadhar)
     try:
+        url = AADHAR_API_URL.format(aadhar=aadhar)
         res = requests.get(url, timeout=15)
         data = res.json()
+        entries = []
+        if isinstance(data, dict):
+            for k in data:
+                v = data[k]
+                if k.isdigit() and isinstance(v, dict):
+                    entries.append(v)
+        if not entries:
+            await delete_searching(context, chat_id, searching.message_id)
+            await update.message.reply_text("*Data Not Found!*\n\nNo information found for this Aadhar.", parse_mode="Markdown")
+            return
+        header = "*Aadhar:* `" + aadhar + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
+        blocks = [header]
+        i = 0
+        for entry in entries:
+            i = i + 1
+            block = "\n*Record " + str(i) + "*\n"
+            block = block + "*Name:* `" + str(entry.get("name") or "None") + "`\n"
+            block = block + "*Father:* `" + str(entry.get("fname") or "None") + "`\n"
+            block = block + "*Mobile:* `" + str(entry.get("mobile") or "None") + "`\n"
+            block = block + "*Alt Mobile:* `" + str(entry.get("alt") or "None") + "`\n"
+            block = block + "*Email:* `" + str(entry.get("email") or "None") + "`\n"
+            block = block + "*Circle:* `" + str(entry.get("circle") or "None") + "`\n"
+            block = block + "*Address:* `" + clean_address(entry.get("address")) + "`"
+            blocks.append(block)
+        text = "\n".join(blocks)
+        await delete_searching(context, chat_id, searching.message_id)
+        chunk = ""
+        for line in text.split("\n"):
+            if len(chunk) + len(line) + 1 > 3800:
+                await update.message.reply_text(chunk, parse_mode="Markdown")
+                chunk = line + "\n"
+            else:
+                chunk = chunk + line + "\n"
+        if chunk.strip():
+            await update.message.reply_text(chunk, parse_mode="Markdown")
     except Exception as e:
-        await safe_delete(context, chat_id, searching.message_id)
+        await delete_searching(context, chat_id, searching.message_id)
         await update.message.reply_text("Error:\n" + str(e))
-        return
-    entries = []
-    if isinstance(data, dict):
-        for k in data:
-            v = data[k]
-            if k.isdigit() and isinstance(v, dict):
-                entries.append(v)
-    if not entries:
-        await safe_delete(context, chat_id, searching.message_id)
-        await update.message.reply_text("*Data Not Found!*\n\nNo information found for this Aadhar.", parse_mode="Markdown")
-        return
-    header = "*Aadhar:* `" + aadhar + "`\n*Total Records:* `" + str(len(entries)) + "`\n"
-    blocks = [header]
-    i = 0
-    for entry in entries:
-        i = i + 1
-        block = "\n*Record " + str(i) + "*\n"
-        block = block + "*Name:* `" + str(entry.get("name") or "None") + "`\n"
-        block = block + "*Father:* `" + str(entry.get("fname") or "None") + "`\n"
-        block = block + "*Mobile:* `" + str(entry.get("mobile") or "None") + "`\n"
-        block = block + "*Alt Mobile:* `" + str(entry.get("alt") or "None") + "`\n"
-        block = block + "*Email:* `" + str(entry.get("email") or "None") + "`\n"
-        block = block + "*Circle:* `" + str(entry.get("circle") or "None") + "`\n"
-        block = block + "*Address:* `" + clean_address(entry.get("address")) + "`"
-        blocks.append(block)
-    text = "\n".join(blocks)
-    await safe_delete(context, chat_id, searching.message_id)
-    await send_long(update, text)
 
 
 async def handle_users_shared(update, context):
-    ok = await gate(update, context)
-    if not ok:
+    user_id = update.message.from_user.id
+    track_user(user_id)
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
         return
-    if not update.message.users_shared:
-        return
-    for user in update.message.users_shared.users:
-        await update.message.reply_text("*User ID:* `" + str(user.user_id) + "`", parse_mode="Markdown")
+    await delete_join_message(context, chat_id)
+    if update.message.users_shared:
+        for user in update.message.users_shared.users:
+            await update.message.reply_text("*User ID:* `" + str(user.user_id) + "`", parse_mode="Markdown")
 
 
 async def handle_chat_shared(update, context):
-    ok = await gate(update, context)
-    if not ok:
+    user_id = update.message.from_user.id
+    track_user(user_id)
+    chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
         return
-    if not update.message.chat_shared:
-        return
-    await update.message.reply_text("*Chat ID:* `" + str(update.message.chat_shared.chat_id) + "`", parse_mode="Markdown")
+    await delete_join_message(context, chat_id)
+    if update.message.chat_shared:
+        await update.message.reply_text("*Chat ID:* `" + str(update.message.chat_shared.chat_id) + "`", parse_mode="Markdown")
 
 
 async def lookup(update, context):
-    ok = await gate(update, context)
-    if not ok:
-        return
+    user_id = update.message.from_user.id
+    track_user(user_id)
     chat_id = update.message.chat_id
+    if not await is_member(user_id, context):
+        await send_join_message(update, context)
+        return
+    await delete_join_message(context, chat_id)
     user_input = update.message.text.strip()
     is_username = user_input.startswith("@") and len(user_input) > 1
     digits_only = user_input.lstrip("+")
@@ -444,46 +449,45 @@ async def lookup(update, context):
     if not is_username and not is_number:
         return
     searching = await update.message.reply_text("Searching...")
-    url = BASE_URL + user_input
     try:
+        url = BASE_URL + user_input
         res = requests.get(url, timeout=10)
         data = res.json()
-    except Exception as e:
-        await safe_delete(context, chat_id, searching.message_id)
-        await update.message.reply_text("Error:\n" + str(e))
-        return
-    if "result" in data:
-        result = data["result"]
-    else:
-        result = data
-    not_found = False
-    text = ""
-    if isinstance(result, dict):
-        if not result.get("success", True):
-            not_found = True
+        if "result" in data:
+            result = data["result"]
         else:
-            fields = {}
-            for k in result:
-                v = result[k]
-                if k != "success" and k != "msg":
-                    fields[k] = v
-            if not fields:
+            result = data
+        not_found = False
+        text = ""
+        if isinstance(result, dict):
+            if not result.get("success", True):
                 not_found = True
             else:
-                lines = ["*Result:*\n"]
-                for key in fields:
-                    value = fields[key]
-                    label = key.replace("_", " ").title()
-                    lines.append("*" + label + ":* `" + str(value) + "`")
-                text = "\n".join(lines)
-    elif not result:
-        not_found = True
-    else:
-        text = "*Result:*\n`" + str(result) + "`"
-    if not_found:
-        text = "*Data Not Found!*\n\nNo information found for this username."
-    await safe_delete(context, chat_id, searching.message_id)
-    await update.message.reply_text(text, parse_mode="Markdown")
+                fields = {}
+                for k in result:
+                    v = result[k]
+                    if k != "success" and k != "msg":
+                        fields[k] = v
+                if not fields:
+                    not_found = True
+                else:
+                    lines = ["*Result:*\n"]
+                    for key in fields:
+                        value = fields[key]
+                        label = key.replace("_", " ").title()
+                        lines.append("*" + label + ":* `" + str(value) + "`")
+                    text = "\n".join(lines)
+        elif not result:
+            not_found = True
+        else:
+            text = "*Result:*\n`" + str(result) + "`"
+        if not_found:
+            text = "*Data Not Found!*\n\nNo information found for this username."
+        await delete_searching(context, chat_id, searching.message_id)
+        await update.message.reply_text(text, parse_mode="Markdown")
+    except Exception as e:
+        await delete_searching(context, chat_id, searching.message_id)
+        await update.message.reply_text("Error:\n" + str(e))
 
 
 if __name__ == "__main__":
@@ -499,7 +503,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("back", back_command))
     app.add_handler(CommandHandler("cancel", cancel_command))
     app.add_handler(CommandHandler("stats", stats_command))
-    app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CallbackQueryHandler(check_joined_callback, pattern="check_joined"))
     app.add_handler(MessageHandler(filters.StatusUpdate.USERS_SHARED, handle_users_shared))
     app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, handle_chat_shared))
